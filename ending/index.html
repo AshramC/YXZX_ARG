@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>距离张晨出现...</title>
+    <style>
+        /* 全局设置 */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+        }
+
+        .bg-container {
+            /* 背景图设置 */
+            background-image: url('bg.jpg'); /* 确保图片叫 bg.jpg */
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: cover;
+            
+            height: 100%;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .countdown-box {
+            margin-top: 5vh; /* 稍微靠上一点，给大字体留空间 */
+            text-align: center;
+            z-index: 10;
+            
+            /* 宋体/明体：尖锐、冷峻 */
+            font-family: "SimSun", "Songti SC", "STSong", "Times New Roman", serif;
+            font-weight: bold;
+            color: #cc0000;
+            mix-blend-mode: normal; 
+        }
+
+        /* 标题文字样式 - 已加大 */
+        .title-text {
+            font-size: 4rem; /* 原来是 2.5rem */
+            letter-spacing: 5px;
+            
+            /* 文字阴影 */
+            text-shadow: 
+                3px 3px 0px #000000,
+                0 0 10px #ff0000;
+            
+            /* 动画加速：0.8s 是一次急促的呼吸 */
+            animation: pulse-glitch 0.8s infinite alternate;
+        }
+
+        /* 倒计时数字样式 - 已加大 */
+        #timer {
+            display: block;
+            margin-top: 10px;
+            
+            /* 机械字体 */
+            font-family: "Courier New", Courier, monospace; 
+            font-size: 6rem; /* 原来是 3.5rem */
+            font-weight: 900;
+            
+            color: #ff3333;
+            
+            text-shadow: 
+                4px 4px 0px #000000,
+                0 0 20px #8b0000;
+                
+            letter-spacing: -2px; /* 数字紧凑一点更有压迫感 */
+        }
+
+        /* --- 动画特效：急促呼吸 --- */
+        @keyframes pulse-glitch {
+            0% {
+                opacity: 1;
+                text-shadow: 3px 3px 0px #000, 0 0 10px #ff0000;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.9;
+                transform: scale(1.02); /* 微微膨胀 */
+            }
+            100% {
+                opacity: 0.7; /* 变暗 */
+                text-shadow: 3px 3px 0px #000, 0 0 25px #cc0000; /* 光晕扩散 */
+                transform: scale(1.01);
+            }
+        }
+
+        /* 手机端适配：如果不适配，大字号会撑破屏幕 */
+        @media (max-width: 768px) {
+            .title-text { font-size: 2rem; }
+            #timer { font-size: 3rem; }
+            .countdown-box { margin-top: 10vh; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-container">
+        <div class="countdown-box">
+            <div class="title-text">距离张晨出现还有</div>
+            <div id="timer">...</div>
+        </div>
+    </div>
+
+    <script>
+        // 目标时间：2025年11月30日
+        const targetDate = new Date("2025-11-30T00:00:00").getTime();
+
+        function updateCountdown() {
+            const now = new Date().getTime();
+            const distance = targetDate - now;
+
+            if (distance < 0) {
+                document.getElementById("timer").innerHTML = "HE IS HERE";
+                document.querySelector(".title-text").innerText = "张晨已至";
+                document.querySelector(".countdown-box").style.color = "#550000"; 
+                return;
+            }
+
+            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+            const d = days;
+            const h = hours < 10 ? "0" + hours : hours;
+            const m = minutes < 10 ? "0" + minutes : minutes;
+            const s = seconds < 10 ? "0" + seconds : seconds;
+
+            // 修改这里：将 D 换成了 天
+            document.getElementById("timer").innerText = `${d}天 ${h}:${m}:${s}`;
+        }
+
+        updateCountdown();
+        setInterval(updateCountdown, 1000);
+    </script>
+</body>
+</html>
