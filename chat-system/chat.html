@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>异象中学学生实名通讯系统 </title>
+<link rel="stylesheet" href="chat-style.css">
+</head>
+<body>
+
+<div class="chat-app">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="user-card">
+        <div class="avatar-circle" id="myAvatar">U</div>
+        <div class="user-info">
+          <h3 id="currentUser">Loading...</h3>
+          <span>在线</span>
+        </div>
+      </div>
+      <button onclick="logout()" class="btn btn-secondary" style="width:100%; font-size:0.8rem;">
+        退出登录
+      </button>
+    </div>
+    
+    <div class="conversation-list" id="conversationList">
+      </div>
+  </aside>
+  
+  <main class="chat-window" id="chatWindow">
+    <header class="chat-header">
+      <div class="chat-title" id="chatTitle">SchoolChat</div>
+      
+      <button class="btn btn-ghost mobile-only" onclick="closeChat()" style="display:none;">
+        返回列表
+      </button>
+    </header>
+    
+    <div class="message-area" id="messageList">
+      <div style="height:100%; display:flex; align-items:center; justify-content:center; flex-direction:column; color:var(--text-muted);">
+        <div style="font-size:3rem; margin-bottom:1rem;">💬</div>
+        <p>请从左侧选择一个对话开始聊天</p>
+      </div>
+    </div>
+    
+    <div class="input-area">
+      <button class="btn btn-ghost" style="padding:0.5rem; border-radius:50%;">➕</button>
+      <div class="fake-input">输入消息... (只读模式)</div>
+      <button class="btn btn-primary" style="border-radius:50%; width:40px; height:40px; padding:0;">➤</button>
+    </div>
+  </main>
+</div>
+
+<div id="passwordModal" class="modal-overlay">
+  <div class="modal-card">
+    <div style="text-align:center; margin-bottom:1.5rem;">
+      <div style="width:50px; height:50px; background:#fee2e2; color:#ef4444; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 1rem auto; font-size:1.5rem;">🔒</div>
+      <h3 id="modalTitle" style="font-size:1.2rem; font-weight:700;">加密对话</h3>
+      <p style="color:var(--text-muted); font-size:0.9rem; margin-top:0.5rem;">此对话内容受密码保护，请输入密码解锁。</p>
+    </div>
+    
+    <input type="password" id="passwordInput" class="input-field" placeholder="输入访问密码">
+    
+    <div id="passwordError" style="color:#ef4444; font-size:0.85rem; margin-bottom:1rem; display:none; text-align:center;">
+      密码错误，请重试
+    </div>
+    
+    <div id="passwordHint" style="background:#f3f4f6; padding:0.8rem; border-radius:0.5rem; font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem; display:none;">
+      </div>
+    
+    <div style="display:flex; gap:0.5rem;">
+      <button id="showHintBtn" class="btn btn-ghost" style="flex:1; font-size:0.85rem;">显示提示</button>
+      <button id="cancelPasswordBtn" class="btn btn-secondary" style="flex:1;">取消</button>
+      <button id="confirmPasswordBtn" class="btn btn-primary" style="flex:1;">解锁</button>
+    </div>
+  </div>
+</div>
+
+<script src="../tools/decrypt-lib.js"></script>
+<script src="../tools/config-switch.js"></script>
+<script src="config.encrypted.js"></script>
+<script src="config.js"></script>
+
+<script>
+(async function() {
+  window.ChatConfig = await loadConfig('ChatConfig', 'ENCRYPTED_CHAT_CONFIG', './config.js');
+  
+  const currentUserId = sessionStorage.getItem('currentUser');
+  const currentDisplayName = sessionStorage.getItem('displayName');
+
+  if (!currentUserId) {
+    window.location.href = 'index.html';
+    return;
+  }
+
+  // UI 初始化
+  document.getElementById('currentUser').textContent = currentDisplayName;
+  document.getElementById('myAvatar').textContent = currentDisplayName[0];
+
+  const userConversations = ChatConfig.conversations[currentUserId] || [];
+  
+  // DOM 元素
+  const modal = document.getElementById('passwordModal');
+  const passInput = document.getElementById('passwordInput');
+  const passError = document.getElementById('passwordError');
+  const passHint = document.getElementById('passwordHint');
+  let pendingConv = null;
+  let pendingEl = null;
+
+  // 1. 渲染对话列表
+  function renderList() {
+    const container = document.getElementById('conversationList');
+    container.innerHTML = '';
+    
+    userConversations.forEach(conv => {
+      const lastMsg = conv.messages[conv.messages.length - 1];
+      const el = document.createElement('div');
+      el.className = 'conv-item';
+      el.onclick = () => handleClick(conv, el);
+
+      // 安全获取时间：如果没有时间（系统消息），则显示为空字符串
+      const timeDisplay = lastMsg.time ? lastMsg.time.split(' ')[0] : '';
+
+      // 优化预览文本：如果是系统消息，显示文本；如果是加密，显示锁；否则显示普通文本
+      let previewText = lastMsg.text;
+      if (conv.security?.type === 'encrypted') {
+        previewText = '🔒 [加密消息]';
+      }
+
+      el.innerHTML = `
+        <div class="conv-header">
+          <span class="conv-title">${conv.conversationName}</span>
+          <span class="conv-time">${timeDisplay}</span>
+        </div>
+        <div class="conv-preview">${previewText}</div>
+      `;
+      container.appendChild(el);
+    });
+  }
+
+  // 2. 点击处理
+  function handleClick(conv, el) {
+    if (conv.security && conv.security.type === 'encrypted') {
+      showPasswordModal(conv, el);
+    } else {
+      openChat(conv, el);
+    }
+  }
+
+  // 3. 密码弹窗逻辑
+  function showPasswordModal(conv, el) {
+    pendingConv = conv;
+    pendingEl = el;
+    
+    document.getElementById('modalTitle').textContent = `解锁 "${conv.conversationName}"`;
+    passInput.value = '';
+    passError.style.display = 'none';
+    passHint.style.display = 'none';
+    modal.style.display = 'flex';
+    passInput.focus();
+  }
+
+  document.getElementById('cancelPasswordBtn').onclick = () => {
+    modal.style.display = 'none';
+    pendingConv = null;
+  };
+
+  document.getElementById('showHintBtn').onclick = () => {
+    if (pendingConv) {
+      passHint.textContent = "💡 提示: " + (pendingConv.security.hint || "无提示");
+      passHint.style.display = 'block';
+    }
+  };
+
+  const confirmUnlock = () => {
+    if (!pendingConv) return;
+    if (passInput.value === pendingConv.security.password) {
+      modal.style.display = 'none';
+      openChat(pendingConv, pendingEl);
+      pendingConv = null;
+    } else {
+      passError.style.display = 'block';
+      passInput.select();
+    }
+  };
+
+  document.getElementById('confirmPasswordBtn').onclick = confirmUnlock;
+  passInput.addEventListener('keydown', e => { if(e.key === 'Enter') confirmUnlock(); });
+
+  // 4. 打开聊天
+  window.openChat = function(conv, el) {
+    // 激活样式
+    document.querySelectorAll('.conv-item').forEach(i => i.classList.remove('active'));
+    if(el) el.classList.add('active');
+    
+    // 移动端处理
+    if(window.innerWidth <= 768) {
+      document.getElementById('chatWindow').classList.add('active');
+      document.querySelector('.mobile-only').style.display = 'block';
+    }
+
+    // 更新头部
+    document.getElementById('chatTitle').innerHTML = conv.conversationName;
+
+    // 渲染消息 (核心逻辑：判断是否是“我”发的)
+    const msgList = document.getElementById('messageList');
+    msgList.innerHTML = '';
+    
+    conv.messages.forEach(msg => {
+      // 系统消息处理
+      if (msg.type === 'system') {
+        const sysEl = document.createElement('div');
+        sysEl.className = 'system-message-row';
+        sysEl.innerHTML = `<span class="system-pill">${msg.text}</span>`;
+        msgList.appendChild(sysEl);
+        return;
+      }
+
+      // 普通消息处理
+      const isMe = msg.sender === currentDisplayName;
+      const row = document.createElement('div');
+      // 添加 me 或 other 类名，配合 CSS 实现左右布局
+      row.className = `message-row ${isMe ? 'me' : 'other'}`;
+      
+      row.innerHTML = `
+        <div class="bubble">
+          ${msg.text}
+        </div>
+        <div class="message-meta">
+          ${isMe ? '' : msg.sender + ' · '} ${msg.time.split(' ')[1] || msg.time}
+        </div>
+      `;
+      msgList.appendChild(row);
+    });
+
+    msgList.scrollTop = msgList.scrollHeight;
+  }
+  
+  window.closeChat = function() {
+    document.getElementById('chatWindow').classList.remove('active');
+  }
+
+  window.logout = function() {
+    sessionStorage.clear();
+    window.location.href = 'index.html';
+  }
+
+  renderList();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 - 异象中学内部邮件系统</title>
+  <link rel="stylesheet" href="mail-style.css">
+</head>
+<body>
+
+<div class="login-wrapper">
+  <div class="login-brand">
+    <div style="font-size: 2.8rem; font-weight: 700; margin-bottom: 0.5rem; line-height: 1.2;">
+      异象中学<br>内部邮件系统
+    </div>
+    <div style="font-size: 0.95rem; opacity: 0.85; margin-top: 1.5rem; line-height: 1.6;">
+      <p style="margin: 0.5rem 0;">📧 用于接收校方通知、作业布置及重要文件</p>
+      <p style="margin: 0.5rem 0;">🔒 邮件内容受学校信息管理制度保护</p>
+      <p style="margin: 0.5rem 0; font-size: 0.85rem; opacity: 0.7;">
+        管理单位：教务处 | 上线时间：2023年9月
+      </p>
+    </div>
+  </div>
+
+  <div class="login-form">
+    <div style="width: 100%; max-width: 360px;">
+      <h2 style="margin-bottom: 2rem; font-size: 1.8rem; color: var(--text-main);">邮箱登录</h2>
+
+      <form id="loginForm">
+        <div style="margin-bottom: 1.5rem;">
+          <label style="display:block; margin-bottom:0.5rem; font-weight:600; color:var(--text-muted); font-size:0.9rem;">邮箱地址</label>
+          <input type="text" id="email" class="search-input" style="background:#f8fafc;" placeholder="name@edu.com" required>
+        </div>
+
+        <div style="margin-bottom: 2rem;">
+          <label style="display:block; margin-bottom:0.5rem; font-weight:600; color:var(--text-muted); font-size:0.9rem;">密码</label>
+          <div style="position: relative;">
+            <input type="password" id="password" class="search-input" style="background:#f8fafc; padding-right: 3rem;" placeholder="••••••••" required>
+            <button type="button" id="togglePassword" style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 0.25rem; display: flex; align-items: center; justify-content: center; transition: color 0.2s;" title="显示/隐藏密码">
+              <svg id="eyeIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 1rem; font-size: 1rem;">
+          立即登录
+        </button>
+
+        <div style="text-align: center;">
+          <span id="forgotBtn" class="link-btn">忘记密码？</span>
+        </div>
+
+        <div id="errorMessage" style="display:none; margin-top:1rem; padding:0.75rem; background:#fef2f2; color:var(--danger); border-radius:0.5rem; text-align:center; font-size:0.9rem;">
+          邮箱地址或密码错误
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div id="forgotModal" class="modal-overlay">
+  <div class="modal-card">
+    <div style="display:flex; justify-content:space-between; margin-bottom:1.5rem;">
+      <h3 style="font-size:1.2rem; font-weight:700;">安全中心 - 找回密码</h3>
+      <button id="closeModal" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--text-muted);">&times;</button>
+    </div>
+
+    <div id="step1" class="step-group active">
+      <p style="color:var(--text-muted); margin-bottom:1rem; font-size:0.9rem;">请输入您的<strong>学号</strong>以验证身份：</p>
+      <input type="text" id="verifyId" class="search-input" placeholder="例如：202301..." style="margin-bottom:1rem;">
+      <button id="btnVerifyId" class="btn btn-primary" style="width:100%;">下一步</button>
+      <div id="errorStep1" style="color:var(--danger); font-size:0.85rem; margin-top:0.8rem; display:none; background:#fef2f2; padding:0.5rem; border-radius:4px;">未找到该学号</div>
+    </div>
+
+    <div id="step2" class="step-group">
+      <p style="color:var(--text-muted); font-size:0.85rem;">为了您的账户安全，请回答安全问题：</p>
+      <div id="questionText" style="font-weight:700; font-size:1.05rem; margin:0.8rem 0 1.2rem 0; color:var(--text-main); line-height:1.4;">--</div>
+      <input type="text" id="verifyAnswer" class="search-input" placeholder="在此输入答案" style="margin-bottom:1rem;">
+      <button id="btnVerifyAns" class="btn btn-primary" style="width:100%;">验证答案</button>
+      <div id="errorStep2" style="color:var(--danger); font-size:0.85rem; margin-top:0.8rem; display:none; background:#fef2f2; padding:0.5rem; border-radius:4px;">答案错误，请重试</div>
+    </div>
+
+    <div id="step3" class="step-group" style="text-align:center;">
+      <div style="font-size:3.5rem; margin-bottom:1rem;">🔓</div>
+      <p style="color:var(--text-muted);">身份验证通过，您的当前密码是：</p>
+      <div id="showPassword" style="font-size:1.8rem; font-weight:800; color:var(--primary); margin:1.5rem 0; letter-spacing: 2px; background:#f0fdfa; padding:1rem; border-radius:0.5rem; user-select:all;">--</div>
+      <button id="btnDone" class="btn btn-ghost" style="width:100%;">返回登录</button>
+    </div>
+  </div>
+</div>
+
+<script src="../tools/decrypt-lib.js"></script>
+<script src="../tools/config-switch.js"></script>
+<script src="email-config.encrypted.js"></script>
+<script src="email-config.js"></script>
+
+<script>
+  (async function() {
+    // 1. 加载配置
+    try {
+      window.EmailSystemConfig = await loadConfig('EmailSystemConfig', 'ENCRYPTED_EMAIL_CONFIG', './email-config.js');
+    } catch (error) {
+      console.error("加载配置失败:", error);
+    }
+
+    // 2. 密码显示/隐藏切换
+    const passwordInput = document.getElementById('password');
+    const toggleBtn = document.getElementById('togglePassword');
+    const eyeIcon = document.getElementById('eyeIcon');
+    
+    toggleBtn.addEventListener('click', function() {
+      if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        // 切换为"闭眼"图标
+        eyeIcon.innerHTML = `
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+          <line x1="1" y1="1" x2="23" y2="23"></line>
+        `;
+        toggleBtn.style.color = 'var(--primary)';
+      } else {
+        passwordInput.type = 'password';
+        // 切换为"睁眼"图标
+        eyeIcon.innerHTML = `
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+        `;
+        toggleBtn.style.color = 'var(--text-muted)';
+      }
+    });
+    
+    toggleBtn.addEventListener('mouseenter', function() {
+      if (passwordInput.type === 'password') {
+        toggleBtn.style.color = 'var(--text-main)';
+      }
+    });
+    
+    toggleBtn.addEventListener('mouseleave', function() {
+      if (passwordInput.type === 'password') {
+        toggleBtn.style.color = 'var(--text-muted)';
+      }
+    });
+
+    // 3. 常规登录逻辑
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const pass = document.getElementById('password').value;
+
+      const account = EmailSystemConfig.accounts.find(acc => acc.id === email && acc.password === pass);
+
+      if (account) {
+        sessionStorage.setItem('emailSystem_user', account.id);
+        sessionStorage.setItem('emailSystem_name', account.displayName);
+        window.location.href = 'email-system.html';
+      } else {
+        const err = document.getElementById('errorMessage');
+        err.style.display = 'block';
+        setTimeout(() => err.style.display = 'none', 3000);
+      }
+    });
+
+    // ==========================================
+    // 3. 找回密码逻辑 (社会工程学玩法)
+    // ==========================================
+    const modal = document.getElementById('forgotModal');
+    let currentRecoveryAccount = null;
+
+    // 打开弹窗
+    document.getElementById('forgotBtn').onclick = () => {
+      modal.style.display = 'flex';
+      switchStep(1);
+      document.getElementById('verifyId').value = '';
+      currentRecoveryAccount = null;
+      setTimeout(() => document.getElementById('verifyId').focus(), 100);
+    };
+
+    document.getElementById('closeModal').onclick = () => modal.style.display = 'none';
+    document.getElementById('btnDone').onclick = () => modal.style.display = 'none';
+
+    function switchStep(step) {
+      document.querySelectorAll('.step-group').forEach(el => el.classList.remove('active'));
+      document.getElementById(`step${step}`).classList.add('active');
+      document.getElementById('errorStep1').style.display = 'none';
+      document.getElementById('errorStep2').style.display = 'none';
+    }
+
+    // Step 1: 验证学号
+    document.getElementById('btnVerifyId').onclick = () => {
+      const inputId = document.getElementById('verifyId').value.trim();
+      const errorDiv = document.getElementById('errorStep1');
+
+      currentRecoveryAccount = EmailSystemConfig.accounts.find(acc => acc.studentId === inputId);
+
+      if (currentRecoveryAccount &&
+              currentRecoveryAccount.enableRecovery &&
+              currentRecoveryAccount.securityQuestion) {
+
+        document.getElementById('questionText').textContent = currentRecoveryAccount.securityQuestion;
+        document.getElementById('verifyAnswer').value = '';
+        switchStep(2);
+        setTimeout(() => document.getElementById('verifyAnswer').focus(), 100);
+
+      } else {
+        if (currentRecoveryAccount && !currentRecoveryAccount.enableRecovery) {
+          errorDiv.textContent = "🔒 该账户未开通自助找回功能";
+        } else {
+          errorDiv.textContent = "❌ 未找到该学号，请检查输入";
+        }
+        errorDiv.style.display = 'block';
+      }
+    };
+
+    // Step 2: 验证密保
+    document.getElementById('btnVerifyAns').onclick = () => {
+      const inputAns = document.getElementById('verifyAnswer').value.trim();
+
+      if (currentRecoveryAccount && inputAns === currentRecoveryAccount.securityAnswer) {
+        document.getElementById('showPassword').textContent = currentRecoveryAccount.password;
+        switchStep(3);
+      } else {
+        document.getElementById('errorStep2').style.display = 'block';
+      }
+    };
+
+    // 回车键支持
+    document.getElementById('verifyId').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') document.getElementById('btnVerifyId').click();
+    });
+    document.getElementById('verifyAnswer').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') document.getElementById('btnVerifyAns').click();
+    });
+
+  })();
+</script>
+</body>
+</html>

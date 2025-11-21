@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>校园墙 - 异象中学学生校园墙</title>
+  <link rel="stylesheet" href="wall-style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="brand-logo">
+    <span style="font-size: 1.5rem;">🔥</span> Campus Wall
+    <span id="termInfo" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 400; margin-left: 10px;"></span>
+  </div>
+  <div>
+    <button id="loginBtn" class="btn btn-ghost" style="font-size: 0.8rem;">管理员登录</button>
+    <div id="adminStatus" style="display: none; align-items: center; gap: 10px;">
+      <span class="admin-badge">ADMIN MODE</span>
+      <button id="logoutBtn" class="btn btn-ghost" style="color: var(--danger);">退出</button>
+    </div>
+  </div>
+</nav>
+
+<div class="layout-container">
+
+  <aside class="left-col">
+    <div class="nav-menu">
+      <div id="navHome" class="nav-item active">
+        <span>🏠</span> 全部动态
+      </div>
+      <div id="navDeleted" class="nav-item" style="display: none; color: var(--danger);">
+        <span>🗑️</span> 已删除记录
+      </div>
+
+      <div style="margin-top: 1.5rem; padding-left: 1rem; font-size: 0.8rem; color: var(--text-muted); font-weight: 700; margin-bottom: 0.5rem;">
+        推荐话题
+      </div>
+      <div id="chips" style="padding: 0 0.5rem;"></div>
+    </div>
+  </aside>
+
+  <main class="feed-col">
+    <div class="search-bar-card">
+      <input id="q" class="search-input" placeholder="搜索内容...">
+      <button id="doSearch" class="btn btn-primary">搜索</button>
+    </div>
+
+    <div id="pinned"></div>
+
+    <div id="feed"></div>
+  </main>
+
+  <aside class="right-col" id="rightPanel">
+    <div class="detail-panel">
+      <div id="detailContent">
+        <div class="detail-placeholder">
+          <div style="font-size: 3rem; margin-bottom: 1rem;">👈</div>
+          <p>点击左侧帖子查看详情</p>
+        </div>
+      </div>
+      <button class="btn btn-ghost" onclick="closeDetail()" style="margin-top: 1rem; width: 100%; display: none;" id="closeDetailBtn">返回列表</button>
+    </div>
+  </aside>
+
+</div>
+
+<div id="loginModal" class="modal">
+  <div class="modal-box">
+    <h3 style="margin-bottom: 1rem;">管理员验证</h3>
+    <input id="adminUser" class="search-input" style="width: 100%; margin-bottom: 10px;" placeholder="用户名">
+    <input id="adminPass" class="search-input" style="width: 100%; margin-bottom: 1rem;" placeholder="密码" type="password">
+    <div id="loginError" style="color: var(--danger); font-size: 0.85rem; margin-bottom: 1rem; display: none;">验证失败</div>
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+      <button id="cancelLogin" class="btn btn-ghost">取消</button>
+      <button id="confirmLogin" class="btn btn-primary">确认登录</button>
+    </div>
+  </div>
+</div>
+
+<script src="../tools/decrypt-lib.js"></script>
+<script src="../tools/config-switch.js"></script>
+<script src="wall-config.encrypted.js"></script>
+<script src="wall-config.js"></script>
+<script src="wall-app.js"></script>
+
+<script>
+  (async function() {
+    try {
+      window.WALL_CONFIG = await loadConfig('WALL_CONFIG', 'ENCRYPTED_WALL_CONFIG', './wall-config.js');
+      initializeWallApp();
+    } catch (e) { console.error(e); }
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学籍档案 - 仪表盘</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .search-input:disabled {
+            background-color: #f8fafc; /* 更淡的灰色 */
+            color: #64748b;
+            cursor: not-allowed;
+            border-color: #e2e8f0;
+        }
+        /* 新增：醒目权限提示条样式 */
+        .permission-alert {
+            display: none; /* 默认隐藏 */
+            margin-top: 16px;
+            font-size: 14px;
+            color: #ef4444; /* 红色文字 */
+            background: #fef2f2; /* 红色背景 */
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid #fee2e2;
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="nav-logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+                <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+            </svg>
+            EduData
+        </div>
+        <div class="nav-profile">
+            <span id="userRoleBadge" style="font-size: 12px; padding: 4px 8px; background: #e0e7ff; color: var(--primary); border-radius: 4px; font-weight:600">Student</span>
+            <div class="avatar" id="userAvatar">U</div>
+            <button id="logoutBtn" class="btn btn-ghost" style="padding: 8px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+            </button>
+        </div>
+    </nav>
+
+    <main class="container">
+        <section class="hero-search" id="searchSection">
+            <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 1rem;">档案检索</h1>
+            <p id="searchSubtitle" style="color: var(--text-muted); margin-bottom: 2rem;">
+                输入姓名或学号快速查找学生档案信息
+            </p>
+            
+            <form id="searchForm" class="search-box-wrapper">
+                <input type="text" class="search-input" id="searchInput" placeholder="请输入搜索关键词..." autocomplete="off">
+                <button type="submit" id="searchSubmitBtn" class="search-btn-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                </button>
+            </form>
+
+            <div id="permissionHint" class="permission-alert">
+                <div style="margin-bottom: 4px;">
+                    🔒 <strong>无搜索权限</strong>：当前账号仅显示本人信息，搜索他人学籍信息请使用管理员账号。
+                </div>
+                <div style="font-size: 10px; opacity: 0.9; padding-top: 4px; border-top: 1px dashed rgba(239, 68, 68, 0.3);">
+                    💡 提示：如果不清楚该去哪获取管理员账户，不妨去 <strong>校园墙</strong> 搜索一下。
+                </div>
+            </div>
+        </section>
+
+        <section id="resultCard" class="card" style="display: none; opacity: 0; transform: translateY(20px);">
+            <div style="padding: 2.5rem;">
+                <div class="student-profile-header">
+                    <div class="profile-avatar-large" id="resAvatar"></div>
+                    <div>
+                        <h2 id="resName" style="font-size: 1.8rem; margin-bottom: 0.25rem;">--</h2>
+                        <p id="resId" style="color: var(--text-muted); font-family: monospace;">ID: --</p>
+                    </div>
+                </div>
+
+                <div class="grid-info">
+                    <div class="info-cell"><div class="label">性别</div><div class="value" id="resGender">--</div></div>
+                    <div class="info-cell"><div class="label">出生日期</div><div class="value" id="resBirth">--</div></div>
+                    <div class="info-cell"><div class="label">所在年级</div><div class="value" id="resGrade">--</div></div>
+                    <div class="info-cell"><div class="label">班级</div><div class="value" id="resClass">--</div></div>
+                    <div class="info-cell"><div class="label">入学日期</div><div class="value" id="resDate">--</div></div>
+                    <div class="info-cell" style="grid-column: span 2;">
+                        <div class="label">家庭住址</div>
+                        <div class="value" id="resAddress">--</div>
+                    </div>
+                    <div class="info-cell" id="resRemarkBox" style="grid-column: span 2; display: none; background-color: #fff7ed;">
+                        <div class="label" style="color: #ea580c;">管理员备注</div>
+                        <div class="value" id="resRemark" style="color: #c2410c;">--</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div id="messageBox" style="text-align: center; margin-top: 2rem; color: var(--text-muted); display: none;">
+            <p id="messageText">未找到相关信息</p>
+        </div>
+    </main>
+
+    <div id="toast" class="toast"></div>
+
+<script src="../tools/decrypt-lib.js"></script>
+<script src="../tools/config-switch.js"></script>
+<script src="school-config.encrypted.js"></script>
+<script src="school-config.js"></script>
+
+<script>
+(async function() {
+    try {
+        window.SchoolSystemConfig = await loadConfig('SchoolSystemConfig', 'ENCRYPTED_SCHOOL_CONFIG', './school-config.js');
+    } catch (e) { console.error(e); }
+
+    const userId = sessionStorage.getItem('schoolSystem_user');
+    const type = sessionStorage.getItem('schoolSystem_type');
+    
+    if(!userId) { window.location.href = 'index.html'; return; }
+
+    const currentAccount = SchoolSystemConfig.accounts.find(acc => acc.id === userId);
+    document.getElementById('userAvatar').textContent = currentAccount.displayName[0];
+    const roleBadge = document.getElementById('userRoleBadge');
+    roleBadge.textContent = type === 'admin' ? 'ADMIN' : 'STUDENT';
+    
+    if(type === 'admin') {
+        roleBadge.style.background = '#fee2e2';
+        roleBadge.style.color = '#ef4444';
+    }
+
+    function renderResult(data) {
+        const card = document.getElementById('resultCard');
+        document.getElementById('resAvatar').textContent = data.name[0];
+        document.getElementById('resName').textContent = data.name;
+        document.getElementById('resId').textContent = data.studentId;
+        document.getElementById('resGender').textContent = data.gender;
+        document.getElementById('resBirth').textContent = data.birthDate;
+        document.getElementById('resGrade').textContent = data.grade;
+        document.getElementById('resClass').textContent = data.class;
+        document.getElementById('resDate').textContent = data.enrollmentDate;
+        document.getElementById('resAddress').textContent = data.homeAddress;
+        
+        const remarkBox = document.getElementById('resRemarkBox');
+        if(type === 'admin') {
+            remarkBox.style.display = 'block';
+            document.getElementById('resRemark').textContent = data.remark || '无';
+        } else {
+            remarkBox.style.display = 'none';
+        }
+
+        card.style.display = 'block';
+        void card.offsetWidth; 
+        card.style.opacity = '1';
+        card.style.transform = 'translateY(0)';
+        document.getElementById('messageBox').style.display = 'none';
+    }
+
+    // ===== 关键修改区域 =====
+    if (type === 'student') {
+        const searchInput = document.getElementById('searchInput');
+        const searchBtn = document.getElementById('searchSubmitBtn');
+        const subTitle = document.getElementById('searchSubtitle');
+        const hint = document.getElementById('permissionHint'); // 获取新加的提示元素
+
+        // 1. 处理输入框状态
+        searchInput.disabled = true;
+        searchInput.value = ""; // 关键：清空Value，才能显示Placeholder
+        searchInput.placeholder = "已锁定：系统仅显示本人信息"; 
+        
+        // 2. 隐藏按钮
+        searchBtn.style.display = 'none';
+        
+        // 3. 修改副标题并显示红色警告条
+        subTitle.textContent = "欢迎回来，以下是您的个人学籍档案";
+        hint.style.display = "inline-block"; // 显示醒目提示
+
+        // 4. 自动加载数据
+        const myId = currentAccount.studentId;
+        const myData = SchoolSystemConfig.studentDatabase[myId];
+        
+        if (myData) {
+            setTimeout(() => renderResult(myData), 100);
+        } else {
+            document.getElementById('messageBox').style.display = 'block';
+            document.getElementById('messageText').textContent = '系统数据中未找到您的档案，请联系管理员。';
+        }
+
+    } else {
+        // 管理员：保持输入框可用，聚焦
+        document.getElementById('searchInput').focus();
+    }
+
+    document.getElementById('searchForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        if(document.getElementById('searchInput').disabled) return;
+
+        const term = document.getElementById('searchInput').value.trim();
+        if(!term) return;
+
+        const card = document.getElementById('resultCard');
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+
+        setTimeout(() => {
+            let foundData = null;
+            for(let key in SchoolSystemConfig.studentDatabase) {
+                const s = SchoolSystemConfig.studentDatabase[key];
+                if(s.name === term || s.studentId === term) {
+                    foundData = s;
+                    break;
+                }
+            }
+
+            if(foundData) {
+                renderResult(foundData);
+            } else {
+                card.style.display = 'none';
+                const msgBox = document.getElementById('messageBox');
+                msgBox.style.display = 'block';
+                document.getElementById('messageText').textContent = '未找到该学生档案';
+            }
+        }, 300);
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+        sessionStorage.clear();
+        window.location.href = 'index.html';
+    });
+})();
+</script>
+</body>
+</html>
