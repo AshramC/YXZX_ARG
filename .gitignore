@@ -1,0 +1,21 @@
+忽略 JetBrains IDE 目录
+
+.idea/
+
+忽略 macOS 操作系统文件
+
+.DS_Store
+
+package.json
+npm-debug.log
+yarn.lock
+GAME_DESIGN.md
+
+tools/encrypt-configs.js
+
+config-source/
+
+chat-system/config.js
+email-system/email-config.js
+school-system/school-config.js
+wall-system/wall-config.js
