@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anomaly High OS</title>
+    <link rel="stylesheet" href="os-style.css">
+</head>
+<body>
+
+<div id="bootScreen" class="boot-screen">
+    <div class="boot-logo">AH</div>
+    <div class="boot-text">
+        <p>> BIOS DATE 09/23/2025 14:22:51 VER 1.02</p>
+        <p>> ANOMALY HIGH UNIFIED SYSTEM (AHUS)</p>
+        <p>
+            <span class="lang-cn-only">> 正在建立安全连接...</span>
+            <span class="lang-en-only">> ESTABLISHING SECURE CONNECTION...</span>
+        </p>
+        <p>
+            <span class="lang-cn-only">> 加载用户配置文件... 完成</span>
+            <span class="lang-en-only">> LOADING USER PROFILE... DONE</span>
+        </p>
+    </div>
+    <div class="loading-bar"><div class="progress"></div></div>
+</div>
+
+<div id="desktop" class="desktop">
+
+    <div class="watermark">
+        <div class="school-logo">AH</div>
+        <div class="school-name">
+            <span class="lang-cn-only">异象中学统一终端</span>
+            <span class="lang-en-only">Anomaly High Terminal</span>
+        </div>
+        <div class="school-sub">
+            <span class="lang-cn-only">仅限校内授权人员访问 · 网络受到监控</span>
+            <span class="lang-en-only">Authorized Personnel Only · Network Monitored</span>
+        </div>
+        <div style="font-size: 6rem; font-weight: 900; opacity: 0.03; margin-top: 2rem; letter-spacing: 10px;">
+            <span class="lang-cn-only">管理终端</span>
+            <span class="lang-en-only">ADMIN ACCESS</span>
+        </div>
+    </div>
+
+    <div id="windowArea">
+        <div class="window" id="win-chat" data-app="chat" style="display:none; left: 5vw; top: 5vh;">
+            <div class="title-bar" style="background: var(--chat-color);">
+                <span class="win-title">
+                    <span class="lang-cn-only">💬 实名通讯系统</span>
+                    <span class="lang-en-only">💬 Chat System</span>
+                </span>
+                <div class="win-controls">
+                    <button class="win-btn min">-</button>
+                    <button class="win-btn close">×</button>
+                </div>
+            </div>
+            <div class="win-content">
+                <iframe src="" data-src="../chat-system/chat.html"></iframe>
+            </div>
+        </div>
+
+        <div class="window" id="win-mail" data-app="mail" style="display:none; left: 8vw; top: 8vh;">
+            <div class="title-bar" style="background: var(--mail-color);">
+                <span class="win-title">
+                    <span class="lang-cn-only">📧 内部邮件</span>
+                    <span class="lang-en-only">📧 Internal Mail</span>
+                </span>
+                <div class="win-controls">
+                    <button class="win-btn min">-</button>
+                    <button class="win-btn close">×</button>
+                </div>
+            </div>
+            <div class="win-content">
+                <iframe src="" data-src="../email-system/email-system.html"></iframe>
+            </div>
+        </div>
+
+        <div class="window" id="win-sis" data-app="sis" style="display:none; left: 11vw; top: 11vh;">
+            <div class="title-bar" style="background: var(--sis-color);">
+                <span class="win-title">
+                    <span class="lang-cn-only">🎓 学籍档案</span>
+                    <span class="lang-en-only">🎓 Student Records</span>
+                </span>
+                <div class="win-controls">
+                    <button class="win-btn min">-</button>
+                    <button class="win-btn close">×</button>
+                </div>
+            </div>
+            <div class="win-content">
+                <iframe src="" data-src="../school-system/dashboard.html"></iframe>
+            </div>
+        </div>
+
+        <div class="window" id="win-wall" data-app="wall" style="display:none; left: 14vw; top: 14vh;">
+            <div class="title-bar" style="background: var(--wall-color);">
+                <span class="win-title">
+                    <span class="lang-cn-only">🔥 校园墙</span>
+                    <span class="lang-en-only">🔥 Campus Wall</span>
+                </span>
+                <div class="win-controls">
+                    <button class="win-btn min">-</button>
+                    <button class="win-btn close">×</button>
+                </div>
+            </div>
+            <div class="win-content">
+                <iframe src="" data-src="../wall-system/wall-system.html"></iframe>
+            </div>
+        </div>
+
+        <div class="window" id="win-tasks" data-app="tasks" style="display:none; left: 20vw; top: 15vh; width: 400px; height: 550px;">
+            <div class="title-bar" style="background: #2563eb;">
+                <span class="win-title">
+                    <span class="lang-cn-only">📋 异象中学小助手</span>
+                    <span class="lang-en-only">📋 AH Helper</span>
+                </span>
+                <div class="win-controls">
+                    <button class="win-btn close">×</button>
+                </div>
+            </div>
+            <div class="win-content task-manager-layout">
+                <div class="task-section-main">
+                    <div class="section-header">
+                        <span class="lang-cn-only">主流程</span>
+                        <span class="lang-en-only">Main Storyline</span>
+                    </div>
+
+                    <div style="padding: 12px 16px; background: #fff1f2; border-bottom: 1px solid #e2e8f0;">
+                        <div style="font-weight: 700; color: #be123c; font-size: 0.9rem; margin-bottom: 4px;">
+                            <span class="lang-cn-only">⚠️ 当前任务目标</span>
+                            <span class="lang-en-only">⚠️ CURRENT OBJECTIVE</span>
+                        </div>
+                        <div style="font-size: 0.9rem; color: #881337; line-height: 1.4;">
+                            <span class="lang-cn-only">调查最近发生的学生失踪事件。</span>
+                            <span class="lang-en-only">Investigate the recent student disappearances.</span>
+                        </div>
+                    </div>
+
+                    <div id="taskListMain" class="task-list"></div>
+                </div>
+                <div class="task-section-hidden collapsed" id="hiddenSection">
+                    <div class="section-header toggle-header" id="hiddenHeader">
+                        <span>
+                            <span class="arrow">▶</span> 
+                            <span class="lang-cn-only">隐藏内容</span>
+                            <span class="lang-en-only">Hidden Content</span>
+                        </span>
+                        <span class="badge-count" id="hiddenCount">0/0</span>
+                    </div>
+                    <div class="hidden-content-wrapper">
+                        <div id="taskListHidden" class="task-list"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <aside class="sidebar-notes">
+        <div class="sidebar-tabs">
+            <div class="sidebar-tab active" data-tab="notes">
+                <span class="lang-cn-only">📓 调查笔记</span>
+                <span class="lang-en-only">📓 Notes</span>
+            </div>
+            <div class="sidebar-tab" data-tab="tools">
+                <span class="lang-cn-only">🛠️ 解码工具</span>
+                <span class="lang-en-only">🛠️ Decoder</span>
+            </div>
+        </div>
+
+        <div id="panel-notes" class="sidebar-panel active">
+            <div class="notes-toolbar">
+                <button id="btnAddNote" class="btn-sm">
+                    <span class="lang-cn-only">+ 随记</span>
+                    <span class="lang-en-only">+ Note</span>
+                </button>
+                <button id="btnClear" class="btn-sm text-danger">
+                    <span class="lang-cn-only">清空</span>
+                    <span class="lang-en-only">Clear</span>
+                </button>
+                <span id="syncStatus" style="font-size: 0.7rem; color: #10b981; margin-left: auto;">
+                    <span class="lang-cn-only">● 已同步</span>
+                    <span class="lang-en-only">● SYNCED</span>
+                </span>
+            </div>
+
+            <div id="notesList" class="notes-list">
+            </div>
+
+            <div class="sidebar-footer" id="sidebarProgressBtn">
+                <div class="progress-label">
+                    <span>
+                        <span class="lang-cn-only">解密进度</span>
+                        <span class="lang-en-only">DECODING PROCESS</span>
+                    </span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="panel-tools" class="sidebar-panel">
+            <div class="decoder-container">
+                <textarea id="decodeInput" class="decoder-input" placeholder="Paste cipher text here..."></textarea>
+
+                <div class="decoder-controls">
+                    <select id="decodeMethod" class="decoder-select">
+                        <option value="base64">Base64</option>
+                        <option value="url">URL Decode</option>
+                        <option value="caesar">Caesar Cipher</option>
+                    </select>
+
+                    <input type="number" id="caesarShift" class="decoder-num" value="13" placeholder="N" style="display:none;" title="Shift Amount">
+
+                    <button id="btnDecode" class="btn-sm" style="flex:1; background: var(--chat-color); color:white; border:none;">
+                        <span class="lang-cn-only">执行</span>
+                        <span class="lang-en-only">Run</span>
+                    </button>
+                </div>
+
+                <div class="decoder-label">
+                    <span class="lang-cn-only">结果输出:</span>
+                    <span class="lang-en-only">OUTPUT:</span>
+                </div>
+                <div id="decodeOutput" class="decoder-output">
+                    <span style="opacity:0.5;">// Waiting for input...</span>
+                </div>
+
+                <button id="btnCopyResult" class="btn-sm" style="width:100%; margin-top:10px; display:none;">
+                    <span class="lang-cn-only">复制结果并添加笔记</span>
+                    <span class="lang-en-only">Copy & Add to Notes</span>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+</div>
+
+<nav class="taskbar">
+    <div class="start-btn">
+        <div style="background:white; color:black; width:20px; height:20px; border-radius:4px; display:flex; align-items:center; justify-content:center; font-weight:900; margin-right:8px;">A</div>
+        <span class="lang-cn-only">开始</span>
+        <span class="lang-en-only">Start</span>
+    </div>
+
+    <div class="app-dock">
+        <button class="app-icon" onclick="OS.open('chat')" title="Chat">
+            <div class="icon-box" style="background: var(--chat-color)">💬</div>
+            <span class="app-dot" id="dot-chat"></span>
+        </button>
+        <button class="app-icon" onclick="OS.open('mail')" title="Mail">
+            <div class="icon-box" style="background: var(--mail-color)">📧</div>
+            <span class="app-dot" id="dot-mail"></span>
+        </button>
+        <button class="app-icon" onclick="OS.open('sis')" title="SIS">
+            <div class="icon-box" style="background: var(--sis-color)">🎓</div>
+            <span class="app-dot" id="dot-sis"></span>
+        </button>
+        <button class="app-icon" onclick="OS.open('wall')" title="Wall">
+            <div class="icon-box" style="background: var(--wall-color)">🔥</div>
+            <span class="app-dot" id="dot-wall"></span>
+        </button>
+    </div>
+
+    <div class="system-tray">
+        <div class="tray-icon lang-toggle" id="langToggle" title="Switch Language / 切换语言">
+            <span class="lang-en-only">中</span>
+            <span class="lang-cn-only">EN</span>
+        </div>
+        <div class="lang-hint">
+            <span class="lang-en-only">你可以点击 中 切换语言</span>
+            <span class="lang-cn-only">Click EN to switch language</span>
+        </div>
+
+        <div class="tray-divider"></div>
+
+        <div class="tray-info">
+            <div class="tray-time" id="clock">00:00</div>
+            <div class="tray-role">
+                <span class="lang-cn-only">管理员</span>
+                <span class="lang-en-only">ADMIN</span>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<script src="../tools/decrypt-lib.js"></script>
+<script src="../tools/lang-switch.js"></script>
+<script src="../tools/config-loader.js"></script>
+<script src="os-core.js"></script>
+
+</body>
+</html>

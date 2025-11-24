@@ -1,0 +1,312 @@
+:root {
+    /* 邮件系统专属配色：青碧色系 */
+    --primary: #0d9488; /* Teal 600 */
+    --primary-hover: #0f766e;
+    --primary-light: #ccfbf1; /* Teal 100 */
+    --bg-body: #f8fafc;
+    --bg-sidebar: #ffffff;
+    --border: #e2e8f0;
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --danger: #ef4444;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    
+    --transition: all 0.2s ease-in-out;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+
+body {
+    background-color: var(--bg-body);
+    color: var(--text-main);
+    height: 100vh;
+    overflow: hidden; /* 邮件应用通常全屏无滚动 */
+    display: flex;
+    flex-direction: column;
+    min-width: 700px;
+    overflow-x: auto; /* 如果窗口真的太小，允许横向滚动而不是乱排版 */
+}
+
+/* 通用组件 */
+.btn {
+    padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: var(--transition);
+    display: inline-flex; align-items: center; gap: 0.5rem;
+}
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-ghost { background: transparent; color: var(--text-muted); }
+.btn-ghost:hover { background: #f1f5f9; color: var(--text-main); }
+
+.avatar {
+    width: 40px; height: 40px; border-radius: 10px; background: var(--primary-light); color: var(--primary);
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.1rem; flex-shrink: 0;
+}
+
+/* 布局框架 */
+.mail-app {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    flex: 1;
+    height: 100%;
+    max-width: 1600px;
+    margin: 0 auto;
+    width: 100%;
+    background: white;
+}
+
+/* 左侧边栏：邮件列表 */
+.sidebar {
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+
+    /* --- 新增/确认 --- */
+    overflow: hidden; /* 强制限制侧边栏高度，不让它随内容无限生长 */
+}
+
+.sidebar-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.search-wrapper { position: relative; }
+.search-input {
+    width: 100%;
+    padding: 0.75rem 1rem 0.75rem 2.5rem;
+    background: #f1f5f9;
+    border: 1px solid transparent;
+    border-radius: 0.75rem;
+    font-size: 0.95rem;
+    transition: var(--transition);
+}
+.search-input:focus { background: white; border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1); }
+.search-icon { position: absolute; left: 0.8rem; top: 0.8rem; color: var(--text-muted); pointer-events: none; }
+
+.email-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+
+    /* --- 新增 --- */
+    min-height: 0; /* 允许 Flex 子项收缩，这是触发滚动的关键 */
+}
+
+.email-item {
+    /* 修改 padding：上 右 下 左 */
+    /* 左侧增加到 2.5rem (约40px) 以容纳红点 */
+    padding: 1rem 1rem 1rem 2.2rem; 
+    
+    margin-bottom: 0.5rem;
+    border-radius: 0.75rem;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: var(--transition);
+    position: relative;
+}
+
+.email-item:hover { background: #f8fafc; }
+.email-item.active { background: #f0fdfa; border-color: var(--primary-light); }
+.email-item.unread .item-subject { font-weight: 700; color: var(--text-main); }
+.email-item.unread::after {
+    content: '';
+    position: absolute;
+    
+    /* 垂直居中微调：根据首行文字高度调整 */
+    top: 1.35rem; 
+    
+    /* 放在左侧内边距的中间位置 */
+    left: 1rem; 
+    
+    /* 移除原有的 right 属性 */
+    right: auto; 
+    
+    width: 8px;
+    height: 8px;
+    background: var(--primary);
+    border-radius: 50%;
+    
+    /* 可选：添加一个柔和的阴影让红点更明显 */
+    box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.15);
+}
+
+.email-item.high-priority { border-left: 3px solid var(--danger); }
+
+.item-top { display: flex; justify-content: space-between; margin-bottom: 0.25rem; }
+.item-sender { font-size: 0.9rem; font-weight: 600; color: var(--text-main); }
+.item-date { font-size: 0.75rem; color: var(--text-muted); }
+.item-subject { font-size: 0.9rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.list-hint {
+    padding: 1rem; text-align: center; font-size: 0.8rem; color: var(--text-muted); background: #f8fafc; border-top: 1px dashed var(--border);
+}
+
+/* 右侧主视图：阅读区 */
+.main-view {
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    overflow: hidden; /* 原代码里已有这行，非常好，保持住！ */
+}
+
+.view-toolbar {
+    padding: 1rem 2rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 73px; /* 与 Sidebar Header 对齐 */
+}
+
+.view-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 3rem 4rem;
+
+    /* --- 新增 --- */
+    min-height: 0; /* 允许 Flex 子项收缩 */
+}
+
+.mail-header { margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; }
+.mail-subject { font-size: 1.75rem; font-weight: 800; margin-bottom: 1rem; line-height: 1.3; }
+.mail-meta { display: flex; align-items: center; gap: 1rem; }
+.meta-info div:first-child { font-weight: 600; color: var(--text-main); }
+.meta-info div:last-child { font-size: 0.85rem; color: var(--text-muted); }
+
+.mail-body {
+    font-size: 1rem; line-height: 1.8; color: #334155;
+}
+
+/* 空状态 */
+.empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted);
+}
+.empty-icon { font-size: 4rem; margin-bottom: 1rem; opacity: 0.5; }
+
+/* 登录页复用及微调 */
+.login-wrapper { display: flex; height: 100vh; }
+.login-brand { 
+    flex: 1; background: linear-gradient(135deg, #0d9488 0%, #115e59 100%); 
+    color: white; padding: 4rem; display: flex; flex-direction: column; justify-content: center; 
+}
+.login-form {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: white;
+    padding: 2rem;
+    position: relative; /* [新增] 为绝对定位的子元素提供基准 */
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+    .mail-app { grid-template-columns: 1fr; }
+    .main-view { display: none; position: fixed; inset: 0; z-index: 10; }
+    .main-view.active { display: flex; }
+    .login-wrapper { flex-direction: column; }
+    .login-brand { display: none; }
+    .view-content { padding: 1.5rem; }
+    .lang-switch-wrapper {
+        top: 1rem;
+        right: 1rem;
+    }
+}
+
+/* =========================================
+   找回密码弹窗样式 (新增)
+   ========================================= */
+
+/* 遮罩层 */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    display: none; /* 默认隐藏 */
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+/* 弹窗卡片 */
+.modal-card {
+    background: white;
+    padding: 2rem;
+    border-radius: 1rem;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 步骤切换动画 */
+.step-group {
+    display: none;
+}
+.step-group.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+/* 忘记密码链接按钮 */
+.link-btn {
+    color: var(--primary);
+    text-decoration: none;
+    font-size: 0.9rem;
+    margin-top: 1rem;
+    display: inline-block;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+.link-btn:hover {
+    text-decoration: underline;
+    opacity: 0.8;
+}
+
+/* 动画定义 */
+@keyframes popIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+}
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* =========================================
+   多语言适配 (i18n Support) - 新增
+   ========================================= */
+
+/* 默认隐藏，防止闪烁 */
+.lang-cn-only, .lang-en-only { display: none !important; }
+
+/* 根据 Body 类名控制显示 */
+body.lang-cn .lang-cn-only { display: inline-block !important; }
+body.lang-en .lang-en-only { display: inline-block !important; }
+
+/* 块级元素辅助类 */
+body.lang-cn div.lang-cn-only,
+body.lang-en div.lang-en-only { display: block !important; }
+
+/* 语言选择器样式 */
+.lang-selector {
+    padding: 0.4rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background-color: #fff;
+    color: var(--text-main);
+    font-size: 0.85rem;
+    cursor: pointer;
+    outline: none;
+    transition: var(--transition);
+}
+.lang-selector:hover { border-color: var(--primary); color: var(--primary); }
+
+.lang-switch-wrapper {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+    z-index: 10;
+}

@@ -1,0 +1,318 @@
+:root {
+    /* 聊天系统专属配色：紫罗兰色系 */
+    --primary: #7c3aed; /* Violet 600 */
+    --primary-hover: #6d28d9;
+    --primary-light: #f3e8ff; /* Violet 100 */
+    --bg-body: #f3f4f6;
+    --bg-sidebar: #ffffff;
+    --bg-chat: #f9fafb;
+    --bubble-me: #7c3aed;
+    --bubble-other: #ffffff;
+    --text-main: #111827;
+    --text-muted: #6b7280;
+    --border: #e5e7eb;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    --radius-xl: 1rem;
+    
+    --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+
+body {
+    background-color: var(--bg-body);
+    color: var(--text-main);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-width: 700px;
+    overflow-x: auto; /* 如果窗口真的太小，允许横向滚动而不是乱排版 */
+}
+
+/* 通用组件 */
+.btn {
+    padding: 0.6rem 1.2rem; border-radius: 0.5rem; border: none; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: var(--transition);
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+}
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
+.btn-ghost { background: transparent; color: var(--text-muted); }
+.btn-ghost:hover { background: #f3f4f6; color: var(--text-main); }
+.btn-secondary { background: #e5e7eb; color: var(--text-main); }
+.btn-secondary:hover { background: #d1d5db; }
+
+/* 聊天应用容器 */
+.chat-app {
+    width: 100%; height: 100%; max-width: 1600px;
+    background: white;
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    box-shadow: var(--shadow-md);
+}
+
+/* === 左侧边栏 === */
+.sidebar {
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+}
+
+.sidebar-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.user-card {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 1rem;
+}
+.avatar-circle {
+    width: 40px; height: 40px; border-radius: 50%; background: var(--primary-light); color: var(--primary);
+    display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.1rem;
+}
+.user-info h3 { font-size: 1rem; font-weight: 700; }
+.user-info span { font-size: 0.8rem; color: var(--text-muted); display: block; }
+
+.conversation-list {
+    flex: 1; overflow-y: auto; padding: 1rem;
+}
+
+.conv-item {
+    padding: 1rem; border-radius: 0.75rem; cursor: pointer; transition: var(--transition);
+    margin-bottom: 0.5rem; border: 1px solid transparent;
+}
+.conv-item:hover { background: #f9fafb; }
+.conv-item.active { background: var(--primary-light); border-color: transparent; }
+.conv-item.active .conv-title { color: var(--primary); }
+
+.conv-header { display: flex; justify-content: space-between; margin-bottom: 0.25rem; }
+.conv-title { font-weight: 600; font-size: 0.95rem; color: var(--text-main); }
+.conv-time { font-size: 0.75rem; color: var(--text-muted); }
+.conv-preview { font-size: 0.85rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* === 右侧聊天窗口 === */
+.chat-window {
+    background: var(--bg-chat);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+
+    /* --- 新增/修改以下两行 --- */
+    height: 100%;       /* 强制占满父容器高度，不随内容撑开 */
+    overflow: hidden;   /* 防止整体溢出 */
+}
+
+.chat-header {
+    height: 70px; padding: 0 2rem; background: white; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+}
+.chat-title { font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
+.chat-title::before { content:''; display:inline-block; width:8px; height:8px; background:#10b981; border-radius:50%; }
+
+/* chat-style.css */
+
+.message-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+
+    /* --- 新增这一行 --- */
+    min-height: 0;  /* 关键修复：允许 flex 子项收缩以触发滚动条 */
+
+    /* 建议：为了滚动体验更平滑，可以加上这个 */
+    scroll-behavior: smooth;
+}
+
+/* 消息气泡 */
+.message-row {
+    display: flex; flex-direction: column; max-width: 70%;
+}
+.message-row.me { align-self: flex-end; align-items: flex-end; }
+.message-row.other { align-self: flex-start; align-items: flex-start; }
+
+.bubble {
+    padding: 0.8rem 1.2rem; border-radius: 1.2rem; font-size: 0.95rem; line-height: 1.5; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.message-row.me .bubble {
+    background: var(--bubble-me); color: white; border-bottom-right-radius: 0.2rem;
+}
+.message-row.other .bubble {
+    background: var(--bubble-other); color: var(--text-main); border-bottom-left-radius: 0.2rem;
+}
+
+.message-meta {
+    font-size: 0.75rem; color: var(--text-muted); margin-top: 0.3rem; padding: 0 0.5rem;
+}
+
+/* 系统消息 */
+.system-message-row {
+    align-self: center; margin: 1rem 0;
+}
+.system-pill {
+    background: #e5e7eb; color: var(--text-muted); font-size: 0.75rem; padding: 0.25rem 0.8rem; border-radius: 1rem;
+}
+
+/* 底部输入框 (虽然是只读系统，但为了拟真需要保留外观) */
+.input-area {
+    padding: 1rem 2rem; background: white; border-top: 1px solid var(--border);
+    display: flex; gap: 1rem; align-items: center;
+}
+.fake-input {
+    flex: 1; background: #f3f4f6; height: 44px; border-radius: 22px; padding: 0 1.5rem;
+    display: flex; align-items: center; color: #9ca3af; font-size: 0.9rem; cursor: not-allowed;
+}
+
+/* === 密码弹窗 === */
+.modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);
+    display: none; justify-content: center; align-items: center; z-index: 1000;
+}
+.modal-card {
+    background: white; padding: 2rem; border-radius: 1rem; width: 100%; max-width: 360px;
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+    animation: modalPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes modalPop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+.input-field {
+    width: 100%; padding: 0.8rem; border: 1px solid var(--border); border-radius: 0.5rem; margin: 1rem 0; outline: none; transition: var(--transition);
+}
+.input-field:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+
+/* =========================================
+   登录页专用样式 (Login Page) - 从 HTML 移入
+   ========================================= */
+
+.login-wrapper {
+    display: flex;
+    height: 100vh;
+    width: 100%;
+    background-color: white; /* 确保背景纯白 */
+}
+
+.login-brand {
+    flex: 1;
+    /* 使用变量替换硬编码颜色，保持风格统一 */
+    background: linear-gradient(135deg, var(--primary) 0%, #4f46e5 100%);
+    color: white;
+    padding: 4rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.login-form-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: white;
+    position: relative; /* 为语言选择器的绝对定位做准备 */
+}
+
+.brand-title {
+    font-size: 3.5rem;
+    font-weight: 800;
+    margin-bottom: 1rem;
+    line-height: 1.2;
+}
+
+/* 优化文字排版 */
+.brand-desc p {
+    margin: 0.5rem 0;
+}
+
+.lang-switch-wrapper {
+    position: absolute; /* 绝对定位：脱离文档流 */
+    top: 1.5rem;        /* 距离顶部距离 */
+    right: 1.5rem;      /* 距离右侧距离 */
+    z-index: 10;        /* 确保图层在最上 */
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+    .chat-app { grid-template-columns: 1fr; }
+    .chat-window { display: none; position: fixed; inset: 0; z-index: 10; }
+    .chat-window.active { display: flex; }
+    .input-area { padding: 0.8rem; }
+    .login-wrapper { flex-direction: column; }
+    .login-brand { display: none; }
+    .lang-switch-wrapper {
+        top: 1rem;
+        right: 1rem;
+    }
+}
+
+/* =========================================
+   多语言显隐控制 (Language Visibility Logic)
+   ========================================= */
+
+/* 默认状态：防止未加载完成时同时显示两种语言 */
+.lang-cn-only,
+.lang-en-only {
+    display: none !important;
+}
+
+/* 当 Body 被标记为中文时 */
+body.lang-cn .lang-cn-only {
+    display: inline-block !important; /* 强制显示中文 */
+}
+
+/* 当 Body 被标记为英文时 */
+body.lang-en .lang-en-only {
+    display: inline-block !important; /* 强制显示英文 */
+}
+
+/* 特殊情况：如果是块级元素需要独占一行，可以加这个辅助类 */
+body.lang-cn div.lang-cn-only,
+body.lang-en div.lang-en-only {
+    display: block !important;
+}
+
+/* =========================================
+   语言选择器样式 (Language Selector)
+   ========================================= */
+
+/* 通用下拉框样式 */
+.lang-selector {
+    padding: 0.5rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background-color: white;
+    color: var(--text-main);
+    font-size: 0.85rem;
+    cursor: pointer;
+    outline: none;
+    appearance: none; /* 移除原生丑陋的箭头，可后续加自定义箭头 */
+    transition: var(--transition);
+
+    /*以此添加一个小箭头图标背景*/
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+    background-size: 1em;
+    padding-right: 2rem;
+}
+
+.lang-selector:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.lang-selector:focus {
+    box-shadow: 0 0 0 3px var(--primary-light);
+    border-color: var(--primary);
+}
+
+/* [侧边栏专用]：使其宽度填满，并增加间距 */
+.sidebar .lang-selector {
+    width: 100%;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+    background-color: #f9fafb; /* 稍微深一点的背景区分 */
+}

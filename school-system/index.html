@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 异象中学学生信息管理系统</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="login-wrapper">
+    <div class="login-brand">
+        <h1 class="brand-title" style="font-size: 2.5rem; line-height: 1.3;">
+            <span class="lang-cn-only">异象中学<br>学生信息管理系统</span>
+            <span class="lang-en-only">Anomaly High<br>Student Info System</span>
+        </h1>
+        <p class="brand-desc" style="font-size: 0.95rem; line-height: 1.6; margin-top: 1.5rem;">
+            <span class="lang-cn-only" style="display: block; margin: 0.5rem 0;"> 学籍档案 | 成绩查询 | 奖惩记录</span>
+            <span class="lang-en-only" style="display: block; margin: 0.5rem 0;"> Records | Grades | Disciplinary</span>
+
+            <span class="lang-cn-only" style="display: block; margin: 0.5rem 0;"> 统一身份认证 | 分级权限管理</span>
+            <span class="lang-en-only" style="display: block; margin: 0.5rem 0;"> Unified Auth | Access Control</span>
+
+            <span style="display: block; margin: 1rem 0 0.5rem; font-size: 0.85rem; opacity: 0.7;">
+              <span class="lang-cn-only">系统维护：教务处</span>
+              <span class="lang-en-only">Maint: Academic Affairs</span>
+            </span>
+        </p>
+    </div>
+
+    <div class="login-form-container" style="position: relative;">
+
+        <div class="lang-switch-wrapper">
+            <select class="lang-selector">
+                <option value="cn">🇨🇳 中文</option>
+                <option value="en">🇺🇸 English</option>
+            </select>
+        </div>
+
+        <div style="width: 100%; max-width: 360px;">
+            <h2 style="margin-bottom: 2rem; font-size: 1.8rem;">
+                <span class="lang-cn-only">欢迎回来</span>
+                <span class="lang-en-only">Welcome Back</span>
+            </h2>
+            <form id="loginForm">
+                <div class="input-group">
+                    <input type="text" id="username" class="input-field" placeholder=" " autocomplete="off" required>
+                    <label for="username" class="input-label">
+                        <span class="lang-cn-only">教务账号</span>
+                        <span class="lang-en-only">Username</span>
+                    </label>
+                </div>
+
+                <div class="input-group">
+                    <div style="position: relative; width: 100%;">
+                        <input type="password" id="password" class="input-field" placeholder=" " style="padding-right: 3rem;" required>
+                        <label for="password" class="input-label">
+                            <span class="lang-cn-only">密码</span>
+                            <span class="lang-en-only">Password</span>
+                        </label>
+                        <button type="button" id="togglePassword" style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 0.25rem; display: flex; align-items: center; justify-content: center; transition: color 0.2s; z-index: 10;">
+                            <svg id="eyeIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn" style="width: 100%; justify-content: center;">
+                    <span class="lang-cn-only">登 录 系统</span>
+                    <span class="lang-en-only">Login System</span>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="../tools/decrypt-lib.js"></script>
+<script src="../tools/lang-switch.js"></script>
+<script src="../tools/config-loader.js"></script>
+
+<script>
+    // 1. 动态加载脚本辅助函数
+    function loadScript(src) {
+        return new Promise((resolve, reject) => {
+            document.querySelectorAll(`script[src*="school-config"]`).forEach(s => s.remove());
+            const script = document.createElement('script');
+            script.src = src + '?t=' + Date.now();
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error(`Failed to load ${src}`));
+            document.body.appendChild(script);
+        });
+    }
+
+    // 2. 核心：重载配置
+    window.reloadConfig = async function(lang) {
+        try {
+            await UnifiedLoader.load(
+                'school-config',
+                'SchoolSystemConfig',
+                'ENCRYPTED_SCHOOL_CONFIG',
+                lang
+            );
+            // initApp();
+        } catch(e) {
+            console.error("School Config Failed", e);
+        }
+    };
+
+    (async function() {
+        // 初始加载
+        const currentLang = localStorage.getItem('app_lang') || 'cn';
+        await window.reloadConfig(currentLang);
+
+        // 密码切换逻辑
+        const passwordInput = document.getElementById('password');
+        const toggleBtn = document.getElementById('togglePassword');
+        const eyeIcon = document.getElementById('eyeIcon');
+
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', function() {
+                if (passwordInput.type === 'password') {
+                    passwordInput.type = 'text';
+                    eyeIcon.innerHTML = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>`;
+                    toggleBtn.style.color = '#3b82f6';
+                } else {
+                    passwordInput.type = 'password';
+                    eyeIcon.innerHTML = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>`;
+                    toggleBtn.style.color = 'var(--text-muted)';
+                }
+            });
+        }
+
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = `toast show ${isError ? 'error' : ''}`;
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const user = document.getElementById('username').value.trim();
+            const pass = document.getElementById('password').value;
+
+            if (!window.SchoolSystemConfig) return;
+
+            const account = SchoolSystemConfig.accounts.find(acc => acc.id === user && acc.password === pass);
+
+            if(account) {
+                sessionStorage.setItem('schoolSystem_user', account.id);
+                sessionStorage.setItem('schoolSystem_type', account.accountType);
+                window.location.href = 'dashboard.html';
+            } else {
+                const isEn = localStorage.getItem('app_lang') === 'en';
+                showToast(isEn ? 'Invalid username or password' : '账号或密码不正确，请重试', true);
+            }
+        });
+    })();
+</script>
+</body>
+</html>

@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学籍档案 - 仪表盘</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .search-input:disabled {
+            background-color: #f8fafc;
+            color: #64748b;
+            cursor: not-allowed;
+            border-color: #e2e8f0;
+        }
+        .permission-alert {
+            display: none;
+            margin-top: 16px;
+            font-size: 14px;
+            color: #ef4444;
+            background: #fef2f2;
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid #fee2e2;
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="nav-logo">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+            <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+        </svg>
+        EduData
+    </div>
+    <div class="nav-profile">
+        <select class="lang-selector" style="margin-right: 1rem; padding: 0.2rem 0.5rem; font-size: 0.8rem;">
+            <option value="cn">CN</option>
+            <option value="en">EN</option>
+        </select>
+
+        <span id="userRoleBadge" style="font-size: 12px; padding: 4px 8px; background: #e0e7ff; color: var(--primary); border-radius: 4px; font-weight:600">Student</span>
+        <div class="avatar" id="userAvatar">U</div>
+        <button id="logoutBtn" class="btn btn-ghost" style="padding: 8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        </button>
+    </div>
+</nav>
+
+<main class="container">
+    <section class="hero-search" id="searchSection">
+        <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 1rem;">
+            <span class="lang-cn-only">档案检索</span>
+            <span class="lang-en-only">Record Search</span>
+        </h1>
+        <p id="searchSubtitle" style="color: var(--text-muted); margin-bottom: 2rem;">
+            <span class="lang-cn-only">输入姓名或学号快速查找学生档案信息</span>
+            <span class="lang-en-only">Enter name or ID to search student records</span>
+        </p>
+
+        <form id="searchForm" class="search-box-wrapper">
+            <input type="text" class="search-input i18n-attr" id="searchInput"
+                   data-attr="placeholder"
+                   data-cn="请输入搜索关键词..."
+                   data-en="Enter keywords..."
+                   placeholder="请输入搜索关键词..." autocomplete="off">
+            <button type="submit" id="searchSubmitBtn" class="search-btn-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            </button>
+        </form>
+
+        <div id="permissionHint" class="permission-alert">
+            <div style="margin-bottom: 4px;">
+                <span class="lang-cn-only">🔒 <strong>无搜索权限</strong>：当前账号仅显示本人信息，搜索他人学籍信息请使用管理员账号。</span>
+                <span class="lang-en-only">🔒 <strong>No Permission</strong>: You can only view your own record. Use Admin account to search others.</span>
+            </div>
+            <div style="font-size: 10px; opacity: 0.9; padding-top: 4px; border-top: 1px dashed rgba(239, 68, 68, 0.3);">
+                <span class="lang-cn-only">💡 提示：如果不清楚该去哪获取管理员账户，不妨去 <strong>校园墙</strong> 搜索一下“管理员账号”。</span>
+                <span class="lang-en-only">💡 Hint: Try searching the <strong>Campus Wall</strong> for Admin credentials.</span>
+            </div>
+        </div>
+    </section>
+
+    <section id="resultCard" class="card" style="display: none; opacity: 0; transform: translateY(20px);">
+        <div style="padding: 2.5rem;">
+            <div class="student-profile-header">
+                <div class="profile-avatar-large" id="resAvatar"></div>
+                <div>
+                    <h2 id="resName" style="font-size: 1.8rem; margin-bottom: 0.25rem;">--</h2>
+                    <p id="resId" style="color: var(--text-muted); font-family: monospace;">ID: --</p>
+                </div>
+            </div>
+
+            <div class="grid-info">
+                <div class="info-cell">
+                    <div class="label"><span class="lang-cn-only">性别</span><span class="lang-en-only">Gender</span></div>
+                    <div class="value" id="resGender">--</div>
+                </div>
+                <div class="info-cell">
+                    <div class="label"><span class="lang-cn-only">出生日期</span><span class="lang-en-only">Birth Date</span></div>
+                    <div class="value" id="resBirth">--</div>
+                </div>
+                <div class="info-cell">
+                    <div class="label"><span class="lang-cn-only">所在年级</span><span class="lang-en-only">Grade</span></div>
+                    <div class="value" id="resGrade">--</div>
+                </div>
+                <div class="info-cell">
+                    <div class="label"><span class="lang-cn-only">班级</span><span class="lang-en-only">Class</span></div>
+                    <div class="value" id="resClass">--</div>
+                </div>
+                <div class="info-cell">
+                    <div class="label"><span class="lang-cn-only">入学日期</span><span class="lang-en-only">Enroll Date</span></div>
+                    <div class="value" id="resDate">--</div>
+                </div>
+                <div class="info-cell" style="grid-column: span 2;">
+                    <div class="label"><span class="lang-cn-only">家庭住址</span><span class="lang-en-only">Address</span></div>
+                    <div class="value" id="resAddress">--</div>
+                </div>
+                <div class="info-cell" id="resRemarkBox" style="grid-column: span 2; display: none; background-color: #fff7ed;">
+                    <div class="label" style="color: #ea580c;">
+                        <span class="lang-cn-only">管理员备注</span><span class="lang-en-only">Admin Remark</span>
+                    </div>
+                    <div class="value" id="resRemark" style="color: #c2410c;">--</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div id="messageBox" style="text-align: center; margin-top: 2rem; color: var(--text-muted); display: none;">
+        <p id="messageText">
+            <span class="lang-cn-only">未找到相关信息</span>
+            <span class="lang-en-only">No record found</span>
+        </p>
+    </div>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script src="../tools/decrypt-lib.js"></script>
+<script src="../tools/lang-switch.js"></script>
+<script src="../tools/config-loader.js"></script>
+
+<script>
+    // ============================================================
+    // 1. 基础工具函数
+    // ============================================================
+
+    // 动态加载 Config 脚本
+    function loadScript(src) {
+        return new Promise((resolve, reject) => {
+            // 移除旧的 config 脚本，防止全局变量污染或缓存
+            document.querySelectorAll(`script[src*="school-config"]`).forEach(s => s.remove());
+
+            const script = document.createElement('script');
+            script.src = src + '?t=' + Date.now(); // 添加时间戳防缓存
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error(`Failed to load ${src}`));
+            document.body.appendChild(script);
+        });
+    }
+
+    // 核心：重载配置并刷新视图 (由 lang-switch.js 调用)
+    window.reloadConfig = async function(lang) {
+        try {
+            await UnifiedLoader.load(
+                'school-config',
+                'SchoolSystemConfig',
+                'ENCRYPTED_SCHOOL_CONFIG',
+                lang
+            );
+            initApp();
+        } catch(e) {
+            console.error("School Config Failed", e);
+        }
+    };
+
+    // ============================================================
+    // 2. 核心业务逻辑
+    // ============================================================
+
+    async function initApp() {
+        // 防御性检查
+        if (!window.SchoolSystemConfig) return;
+
+        const userId = sessionStorage.getItem('schoolSystem_user');
+        const type = sessionStorage.getItem('schoolSystem_type'); // 'student' 或 'admin'
+        const isEn = localStorage.getItem('app_lang') === 'en'; // 当前是否为英文模式
+
+        // 未登录拦截
+        if(!userId) { window.location.href = 'index.html'; return; }
+
+        // 获取当前账户信息 (配置已分离，displayName 直接是字符串)
+        const currentAccount = SchoolSystemConfig.accounts.find(acc => acc.id === userId);
+        const displayName = currentAccount ? currentAccount.displayName : userId;
+
+        // 更新 Navbar 用户信息
+        document.getElementById('userAvatar').textContent = displayName[0].toUpperCase();
+        const roleBadge = document.getElementById('userRoleBadge');
+        roleBadge.textContent = type === 'admin' ? 'ADMIN' : 'STUDENT';
+
+        // 管理员徽章样式区分
+        if(type === 'admin') {
+            roleBadge.style.background = '#fee2e2';
+            roleBadge.style.color = '#ef4444';
+        } else {
+            roleBadge.style.background = '#e0e7ff';
+            roleBadge.style.color = 'var(--primary)';
+        }
+
+        // -------------------------------------------------
+        // 渲染函数：将学生数据填充到卡片
+        // -------------------------------------------------
+        function renderResult(data) {
+            const card = document.getElementById('resultCard');
+
+            // 头像取名字首字母
+            const initial = data.name ? data.name.charAt(0).toUpperCase() : '?';
+            document.getElementById('resAvatar').textContent = initial;
+
+            // 填充基本信息 (数据源已是单语言字符串，直接赋值)
+            document.getElementById('resName').textContent = data.name;
+            document.getElementById('resId').textContent = data.studentId;
+            document.getElementById('resGender').textContent = data.gender;
+            document.getElementById('resBirth').textContent = data.birthDate;
+            document.getElementById('resGrade').textContent = data.grade;
+            document.getElementById('resClass').textContent = data.class;
+            document.getElementById('resDate').textContent = data.enrollmentDate;
+            document.getElementById('resAddress').textContent = data.homeAddress;
+
+            // 备注信息 (仅管理员可见)
+            const remarkBox = document.getElementById('resRemarkBox');
+            if(type === 'admin') {
+                remarkBox.style.display = 'block';
+                // 如果备注为空，显示默认文本
+                const defaultText = isEn ? 'None' : '无';
+                document.getElementById('resRemark').textContent = data.remark || defaultText;
+            } else {
+                remarkBox.style.display = 'none';
+            }
+
+            // 显示卡片动画
+            card.style.display = 'block';
+            void card.offsetWidth; // 触发重绘
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+
+            // 隐藏"未找到"提示
+            document.getElementById('messageBox').style.display = 'none';
+        }
+
+        // -------------------------------------------------
+        // 权限控制与界面状态初始化
+        // -------------------------------------------------
+        const searchInput = document.getElementById('searchInput');
+        const searchBtn = document.getElementById('searchSubmitBtn');
+        const subTitle = document.getElementById('searchSubtitle');
+        const hint = document.getElementById('permissionHint');
+
+        if (type === 'student') {
+            // === 学生模式 ===
+
+            // 1. 锁定输入框
+            searchInput.disabled = true;
+            searchInput.value = "";
+            searchInput.placeholder = isEn ? "Locked: Viewing own record only" : "已锁定：系统仅显示本人信息";
+
+            // 2. 隐藏搜索按钮
+            searchBtn.style.display = 'none';
+
+            // 3. 更新副标题
+            subTitle.innerHTML = isEn
+                ? "Welcome back, here is your academic record"
+                : "欢迎回来，以下是您的个人学籍档案";
+
+            // 4. 显示权限提示条
+            hint.style.display = "inline-block";
+
+            // 5. 自动加载本人数据
+            const myId = currentAccount.studentId;
+            const myData = SchoolSystemConfig.studentDatabase[myId];
+
+            if (myData) {
+                setTimeout(() => renderResult(myData), 100);
+            } else {
+                document.getElementById('messageBox').style.display = 'block';
+                document.getElementById('messageText').textContent = isEn
+                    ? 'Record not found, please contact admin.'
+                    : '系统数据中未找到您的档案，请联系管理员。';
+            }
+
+        } else {
+            // === 管理员模式 ===
+            searchInput.disabled = false;
+            searchInput.placeholder = isEn ? "Enter keywords..." : "请输入搜索关键词...";
+            searchBtn.style.display = 'inline-block';
+            hint.style.display = 'none';
+            // 还原副标题 (使用 HTML 中定义的默认静态双语文本，或此处动态覆盖均可，此处保留静态默认)
+        }
+
+        // -------------------------------------------------
+        // 智能搜索逻辑 (支持模糊匹配、忽略大小写)
+        // -------------------------------------------------
+        function checkMatch(student, term) {
+            // 1. 处理搜索词：转小写，移除所有空格
+            // 例: "Wu Yu" -> "wuyu"
+            const cleanTerm = term.toLowerCase().replace(/\s+/g, '');
+
+            // 2. 获取目标数据 (防止 undefined)
+            const name = student.name || "";
+            const id = student.studentId || "";
+
+            // 3. 处理目标名字
+            const cleanName = name.toLowerCase().replace(/\s+/g, '');
+
+            // 4. 匹配规则：ID包含 OR 名字包含
+            return id.includes(cleanTerm) || cleanName.includes(cleanTerm);
+        }
+
+        // 绑定搜索提交事件
+        const form = document.getElementById('searchForm');
+        // 移除旧的监听器 (防止重载 config 时重复绑定)
+        const newForm = form.cloneNode(true);
+        form.parentNode.replaceChild(newForm, form);
+
+        // 重新获取 DOM 引用
+        const activeForm = document.getElementById('searchForm');
+        const activeInput = document.getElementById('searchInput');
+
+        activeForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            // 如果输入框被禁用（如学生模式），则不执行
+            if(activeInput.disabled) return;
+
+            const rawTerm = activeInput.value.trim();
+            if(!rawTerm) return;
+
+            // 【关键步骤 1】标准化搜索词
+            // 逻辑：全部转小写 + 移除所有空格
+            // 效果：输入 "Zhang Chen" 或 "zhangchen" 都会变为 "zhangchen"
+            const cleanTerm = rawTerm.toLowerCase().replace(/\s+/g, '');
+
+            const card = document.getElementById('resultCard');
+            // 动画效果：先隐藏当前卡片
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(20px)';
+
+            setTimeout(() => {
+                let foundData = null;
+
+                // 遍历数据库查找
+                for(let key in SchoolSystemConfig.studentDatabase) {
+                    const s = SchoolSystemConfig.studentDatabase[key];
+
+                    // 【关键步骤 2】标准化数据库中的名字
+                    // 数据源已是单语言字符串 (例如 "Zhang Chen" 或 "吴宇")
+                    const dbName = (s.name || "").toLowerCase().replace(/\s+/g, '');
+                    const dbId = (s.studentId || ""); // 学号保持原样（通常是数字）
+
+                    // 【关键步骤 3】严格全等判断 (===)
+                    // 逻辑：只有当处理后的字符串完全相等时才算匹配
+                    // 效果：
+                    // - 搜 "Zhang" (zhang) !== "Zhang Chen" (zhangchen) -> 不匹配
+                    // - 搜 "Zhang Chen" (zhangchen) === "Zhang Chen" (zhangchen) -> 匹配
+                    if(dbName === cleanTerm || dbId === cleanTerm) {
+                        foundData = s;
+                        break; // 找到唯一的精确匹配项，停止循环
+                    }
+                }
+
+                // 结果渲染逻辑
+                if(foundData) {
+                    renderResult(foundData);
+                } else {
+                    // 未找到匹配项
+                    card.style.display = 'none';
+                    const msgBox = document.getElementById('messageBox');
+                    msgBox.style.display = 'block';
+
+                    // 双语提示
+                    const isEn = localStorage.getItem('app_lang') === 'en';
+                    document.getElementById('messageText').textContent = isEn
+                        ? 'No exact match found'
+                        : '未找到该学生档案 (请尝试输入全名)';
+                }
+            }, 300); // 模拟查询延迟动画
+        });
+    }
+
+    // ============================================================
+    // 3. 启动逻辑
+    // ============================================================
+    (async function() {
+        // 获取当前语言设置
+        const currentLang = localStorage.getItem('app_lang') || 'cn';
+
+        // 首次加载配置 (lang-switch.js 已处理 DOM 显隐，这里处理数据加载)
+        await window.reloadConfig(currentLang);
+
+        // 绑定退出按钮
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            sessionStorage.clear();
+            window.location.href = 'index.html';
+        });
+    })();
+</script>
+</body>
+</html>

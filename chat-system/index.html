@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 - 异象中学学生实名通讯系统</title>
+  <link rel="stylesheet" href="chat-style.css">
+</head>
+<body>
+
+<div class="login-wrapper">
+
+  <div class="login-brand">
+    <div class="brand-title">
+      <span class="lang-cn-only">异象中学<br>学生实名通讯系统</span>
+      <span class="lang-en-only">Anomaly High<br>Communication System</span>
+    </div>
+
+    <div class="brand-desc" style="font-size: 0.95rem; opacity: 0.85; margin-top: 1.5rem; line-height: 1.6;">
+      <p>
+        <span class="lang-cn-only">🛡️ 本系统采用实名认证，所有聊天记录将被保存</span>
+        <span class="lang-en-only">🛡️ Real-name authentication required. Records are archived.</span>
+      </p>
+      <p>
+        <span class="lang-cn-only">⚠️ 请自觉遵守《学生网络行为管理条例》</span>
+        <span class="lang-en-only">⚠️ Please comply with the Cyber Conduct Regulations.</span>
+      </p>
+      <p style="margin-top: 1rem; font-size: 0.85rem; opacity: 0.7;">
+        <span class="lang-cn-only">系统版本：v2.3.1 | 技术支持：校信息中心</span>
+        <span class="lang-en-only">Ver 2.3.1 | Powered by IT Center</span>
+      </p>
+    </div>
+  </div>
+
+  <div class="login-form-container">
+
+    <div class="lang-switch-wrapper">
+      <select class="lang-selector">
+        <option value="cn">🇨🇳 中文</option>
+        <option value="en">🇺🇸 English</option>
+      </select>
+    </div>
+
+    <div style="width: 100%; max-width: 360px; padding: 2rem;">
+      <h2 style="margin-bottom: 2rem; font-size: 1.8rem; font-weight: 700;">
+        <span class="lang-cn-only">账号登录</span>
+        <span class="lang-en-only">Student Login</span>
+      </h2>
+
+      <form id="loginForm">
+        <div style="margin-bottom: 1.5rem;">
+          <label style="display:block; margin-bottom:0.5rem; font-weight:600; color:var(--text-muted); font-size:0.9rem;">
+            <span class="lang-cn-only">账号</span>
+            <span class="lang-en-only">Username / ID</span>
+          </label>
+          <input type="text" id="username" class="input-field i18n-attr" style="margin:0"
+                 required
+                 data-attr="placeholder"
+                 data-cn="请输入校园账号"
+                 data-en="Enter Student ID"
+                 placeholder="请输入校园账号">
+        </div>
+
+        <div style="margin-bottom: 2rem;">
+          <label style="display:block; margin-bottom:0.5rem; font-weight:600; color:var(--text-muted); font-size:0.9rem;">
+            <span class="lang-cn-only">密码</span>
+            <span class="lang-en-only">Password</span>
+          </label>
+          <div style="position: relative;">
+            <input type="password" id="password" class="input-field i18n-attr" style="margin:0; padding-right: 3rem;"
+                   required
+                   data-attr="placeholder"
+                   data-cn="••••••••"
+                   data-en="••••••••"
+                   placeholder="••••••••">
+
+            <button type="button" id="togglePassword" style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 0.25rem; display: flex; align-items: center; justify-content: center; transition: color 0.2s;" title="Toggle Password">
+              <svg id="eyeIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 1rem; font-size: 1rem;">
+          <span class="lang-cn-only">进入聊天</span>
+          <span class="lang-en-only">Enter Chat</span>
+        </button>
+
+        <div id="errorMsg" style="display:none; margin-top:1rem; padding:0.75rem; background:#fef2f2; color:#ef4444; border-radius:0.5rem; text-align:center; font-size:0.9rem;">
+          <span class="lang-cn-only">账号或密码错误</span>
+          <span class="lang-en-only">Invalid username or password</span>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="../tools/decrypt-lib.js"></script>
+<script src="../tools/config-loader.js"></script>
+<script src="../tools/lang-switch.js"></script>
+
+<script>
+  /**
+   * 定义配置重载函数 (供 lang-switch.js 调用)
+   */
+  window.reloadConfig = async function(lang) {
+    try {
+      // 使用通用加载器智能加载
+      // Chat 的配置文件名是 'config' (对应 config.js / config.encrypted.js)
+      await UnifiedLoader.load(
+              'config',               // baseName
+              'ChatConfig',           // globalVar
+              'ENCRYPTED_CHAT_CONFIG',// encryptedVar
+              lang                    // lang
+      );
+    } catch (e) {
+      console.error("Login Config Load Failed:", e);
+    }
+  };
+
+  // 初始化与交互逻辑
+  (async function() {
+    // 1. 启动时加载配置
+    const currentLang = localStorage.getItem('app_lang') || 'cn';
+    await window.reloadConfig(currentLang);
+
+    // 2. 密码显示/隐藏切换 (保持原样)
+    const passwordInput = document.getElementById('password');
+    const toggleBtn = document.getElementById('togglePassword');
+    const eyeIcon = document.getElementById('eyeIcon');
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', function() {
+        if (passwordInput.type === 'password') {
+          passwordInput.type = 'text';
+          eyeIcon.innerHTML = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>`;
+          toggleBtn.style.color = '#7c3aed';
+        } else {
+          passwordInput.type = 'password';
+          eyeIcon.innerHTML = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>`;
+          toggleBtn.style.color = 'var(--text-muted)';
+        }
+      });
+    }
+
+    // 3. 登录表单提交逻辑
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const user = document.getElementById('username').value.trim();
+      const pass = document.getElementById('password').value;
+      const err = document.getElementById('errorMsg');
+
+      // 安全检查：确保配置已加载
+      if (!window.ChatConfig || !window.ChatConfig.accounts) {
+        alert("System initializing... please wait."); // 防止用户手速过快
+        return;
+      }
+
+      const account = window.ChatConfig.accounts.find(acc => acc.id === user && acc.password === pass);
+
+      if (account) {
+        sessionStorage.setItem('currentUser', account.id);
+
+        // 处理显示名 (兼容对象型和字符串型)
+        let displayName = account.displayName;
+        if (typeof displayName === 'object' && displayName !== null) {
+          const lang = localStorage.getItem('app_lang') || 'cn';
+          displayName = displayName[lang] || displayName['cn'] || user;
+        }
+
+        sessionStorage.setItem('displayName', displayName);
+        window.location.href = 'chat.html';
+      } else {
+        err.style.display = 'block';
+        // 3秒后自动隐藏错误提示
+        setTimeout(() => err.style.display = 'none', 3000);
+      }
+    });
+  })();
+</script>
+</body>
+</html>

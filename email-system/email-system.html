@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>收件箱 - 内部邮件系统</title>
+  <link rel="stylesheet" href="mail-style.css">
+</head>
+<body>
+
+<div class="mail-app">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <h2 style="font-size: 1.25rem;">
+          <span class="lang-cn-only">收件箱</span>
+          <span class="lang-en-only">Inbox</span>
+        </h2>
+        <select class="lang-selector" style="padding: 0.2rem 0.5rem; font-size:0.8rem;">
+          <option value="cn">CN</option>
+          <option value="en">EN</option>
+        </select>
+      </div>
+      <div class="search-wrapper">
+        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input type="text" id="emailSearchInput" class="search-input i18n-attr"
+               data-attr="placeholder"
+               data-cn="查找邮件、发件人..."
+               data-en="Search emails, sender..."
+               placeholder="查找邮件...">
+      </div>
+    </div>
+
+    <div id="emailList" class="email-list">
+    </div>
+  </aside>
+
+  <main class="main-view" id="mainView">
+    <header class="view-toolbar">
+      <div style="font-size: 0.9rem; color: var(--text-muted);">
+        <span class="lang-cn-only">当前用户: </span>
+        <span class="lang-en-only">User: </span>
+        <span id="userEmailDisplay" style="font-weight: 600; color: var(--text-main);">--</span>
+      </div>
+      <button onclick="logout()" class="btn btn-ghost">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        <span class="lang-cn-only">退出系统</span>
+        <span class="lang-en-only">Logout</span>
+      </button>
+    </header>
+
+    <div id="emailViewContent" class="view-content">
+      <div class="empty-state">
+        <div class="empty-icon">📩</div>
+        <h3 style="font-size: 1.2rem; margin-bottom: 0.5rem;">
+          <span class="lang-cn-only">欢迎使用内部邮件系统</span>
+          <span class="lang-en-only">Welcome to Internal Mail System</span>
+        </h3>
+        <p>
+          <span class="lang-cn-only">请从左侧列表中选择一封邮件开始阅读</span>
+          <span class="lang-en-only">Select an email from the list to read</span>
+        </p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="../tools/decrypt-lib.js"></script>
+<script src="../tools/lang-switch.js"></script>
+<script src="../tools/config-loader.js"></script>
+
+<script>
+  // 全局变量
+  let allUserEmails = [];
+
+  // 1. 动态加载脚本辅助函数
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      // 移除所有旧的 config 脚本（包括加密版和明文版）
+      document.querySelectorAll(`script[src*="email-config"]`).forEach(s => s.remove());
+
+      const script = document.createElement('script');
+      script.src = src + '?t=' + Date.now();
+      script.onload = () => resolve();
+      script.onerror = () => reject();
+      document.body.appendChild(script);
+    });
+  }
+
+  // 2. 核心重载函数 (由 lang-switch.js 调用)
+  window.reloadConfig = async function(lang) {
+    try {
+      // 使用通用加载器
+      await UnifiedLoader.load(
+              'email-config',          // 文件名前缀
+              'EmailSystemConfig',     // 目标变量
+              'ENCRYPTED_EMAIL_CONFIG',// 加密变量
+              lang                     // 当前语言
+      );
+
+      // UI 初始化逻辑 (保持原样)
+      initApp();
+
+      // 保持阅读状态逻辑 (保持原样)
+      const activeItem = document.querySelector('.email-item.active');
+      if(activeItem) {
+        openEmail(activeItem.id.replace('item-', ''));
+      } else {
+        resetMainView();
+      }
+    } catch (e) {
+      console.error("System Boot Failed:", e);
+      alert("无法加载邮件配置 / Config Load Failed");
+    }
+  };
+
+  function resetMainView() {
+    document.getElementById('emailViewContent').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">📩</div>
+        <h3 style="font-size: 1.2rem; margin-bottom: 0.5rem;">
+            ${localStorage.getItem('app_lang')==='en' ? "Welcome" : "欢迎使用内部邮件系统"}
+        </h3>
+        <p>${localStorage.getItem('app_lang')==='en' ? "Select an email to read" : "请从左侧列表中选择一封邮件开始阅读"}</p>
+      </div>`;
+  }
+
+  // 3. 应用初始化
+  async function initApp() {
+    const currentUserEmail = sessionStorage.getItem('emailSystem_user');
+
+    if (!currentUserEmail) {
+      window.location.href = 'email-login.html';
+      return;
+    }
+
+    // 更新用户显示名 (直接从 Config 读最新的语言版本)
+    const userAccount = EmailSystemConfig.accounts.find(a => a.id === currentUserEmail);
+    const displayName = userAccount ? userAccount.displayName : currentUserEmail;
+    document.getElementById('userEmailDisplay').textContent = `${displayName} <${currentUserEmail}>`;
+
+    // 准备邮件数据
+    const userPersonalEmails = EmailSystemConfig.mailboxes[currentUserEmail] || [];
+    const commonEmails = EmailSystemConfig.commonEmails || [];
+
+    allUserEmails = [...userPersonalEmails, ...commonEmails].sort((a, b) => {
+      const pA = a.priority || 0;
+      const pB = b.priority || 0;
+      if (pA !== pB) return pB - pA;
+      return new Date(b.date) - new Date(a.date);
+    });
+
+    // 初始渲染
+    renderList(getEmailsToDisplay(""));
+  }
+
+  // 4. 过滤逻辑
+  function getEmailsToDisplay(keyword = "") {
+    const term = keyword.trim().toLowerCase();
+
+    if (!term) return allUserEmails.filter(email => !email.hidden).slice(0, 10);
+
+    return allUserEmails.filter(email => {
+      // 隐藏邮件只有搜中关键词才显示
+      if (email.hidden) {
+        const definedKeywords = email.keywords || [];
+        // 注意：build.js 生成时 keywords 也会被分离
+        // 如果你在 YAML 里 keywords 是数组，这里直接用
+        return definedKeywords.some(k => k.toLowerCase() === term);
+      }
+
+      // 普通邮件搜索 (直接搜当前语言的文本)
+      const subject = (email.subject || "").toLowerCase();
+      const sender = (email.sender || "").toLowerCase();
+      return subject.includes(term) || sender.includes(term);
+    });
+  }
+
+  // 5. 渲染列表
+  function renderList(emails) {
+    const emailListEl = document.getElementById('emailList');
+    const isEn = localStorage.getItem('app_lang') === 'en';
+
+    if (emails.length === 0) {
+      emailListEl.innerHTML = `<div style="padding:2rem; text-align:center; color:var(--text-muted);">${isEn ? "No emails found" : "未找到相关邮件"}</div>`;
+      return;
+    }
+
+    const itemsHtml = emails.map(email => {
+      const isHigh = (email.priority || 0) > 0;
+      // 直接使用 email.sender 等字段，它们已经是当前语言的字符串了
+      return `
+          <div class="email-item ${!email.read ? 'unread' : ''} ${isHigh ? 'high-priority' : ''}"
+               onclick="openEmail('${email.id}')" id="item-${email.id}">
+            <div class="item-top">
+              <span class="item-sender">${email.sender}</span>
+              <span class="item-date">${email.date.split(' ')[0]}</span>
+            </div>
+            <div class="item-subject">${email.subject}</div>
+          </div>
+        `;
+    }).join('');
+
+    const footerHtml = `
+        <div class="list-hint">
+          ${isEn ? "Showing recent 10 emails" : "仅显示10最近邮件，更多内容请使用上方搜索"}
+        </div>
+      `;
+    emailListEl.innerHTML = itemsHtml + footerHtml;
+  }
+
+  // 6. 打开邮件
+  window.openEmail = function(id) {
+    const email = allUserEmails.find(m => m.id === id);
+    if(!email) return;
+
+    // 样式更新
+    document.querySelectorAll('.email-item').forEach(el => el.classList.remove('active'));
+    const itemEl = document.getElementById(`item-${id}`);
+    if(itemEl) {
+      itemEl.classList.add('active');
+      itemEl.classList.remove('unread');
+    }
+    email.read = true;
+
+    // 渲染内容 (直接插入，Config里已经是HTML字符串了)
+    const emailViewEl = document.getElementById('emailViewContent');
+    const isEn = localStorage.getItem('app_lang') === 'en';
+
+    emailViewEl.innerHTML = `
+        <div class="mail-header">
+            <h1 class="mail-subject">${email.subject}</h1>
+            <div class="mail-meta">
+                <div class="avatar">${email.sender[0]}</div>
+                <div class="meta-info">
+                    <div>${email.sender}</div>
+                    <div>${email.date}</div>
+                </div>
+            </div>
+        </div>
+        <div class="mail-body">
+            ${email.content}
+        </div>
+    `;
+
+    // 移动端处理
+    if(window.innerWidth <= 768) {
+      document.getElementById('mainView').classList.add('active');
+      // 添加返回按钮
+      const backBtn = document.createElement('button');
+      backBtn.className = 'btn btn-ghost';
+      backBtn.innerHTML = isEn ? '← Back' : '← 返回列表';
+      backBtn.style.marginBottom = '1rem';
+      backBtn.onclick = () => document.getElementById('mainView').classList.remove('active');
+      emailViewEl.prepend(backBtn);
+    }
+  }
+
+  window.logout = function() {
+    sessionStorage.clear();
+    window.location.href = 'email-login.html';
+  }
+
+  // 绑定搜索
+  document.getElementById('emailSearchInput').addEventListener('input', (e) => {
+    renderList(getEmailsToDisplay(e.target.value));
+  });
+
+  // 启动
+  (async function(){
+    const currentLang = localStorage.getItem('app_lang') || 'cn';
+    // 首次加载配置
+    await window.reloadConfig(currentLang);
+  })();
+
+</script>
+</body>
+</html>

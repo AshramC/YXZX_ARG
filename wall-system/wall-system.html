@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>校园墙 - 异象中学学生校园墙</title>
+  <link rel="stylesheet" href="wall-style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="brand-logo">
+    <span style="font-size: 1.5rem;">🔥</span>
+    <span class="lang-cn-only">校园墙 Campus Wall</span>
+    <span class="lang-en-only">Campus Wall</span>
+    <span id="termInfo" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 400; margin-left: 10px;"></span>
+  </div>
+  <div style="display: flex; align-items: center;">
+
+    <div class="lang-switch-wrapper">
+      <select class="lang-selector">
+        <option value="cn">CN</option>
+        <option value="en">EN</option>
+      </select>
+    </div>
+
+    <button id="loginBtn" class="btn btn-ghost" style="font-size: 0.8rem;">
+      <span class="lang-cn-only">管理员登录</span>
+      <span class="lang-en-only">Admin Login</span>
+    </button>
+
+    <div id="adminStatus" style="display: none; align-items: center; gap: 10px;">
+      <span class="admin-badge">ADMIN MODE</span>
+      <button id="logoutBtn" class="btn btn-ghost" style="color: var(--danger);">
+        <span class="lang-cn-only">退出</span>
+        <span class="lang-en-only">Logout</span>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<div class="layout-container">
+
+  <aside class="left-col">
+    <div class="nav-menu">
+      <div id="navHome" class="nav-item active">
+        <span>🏠</span>
+        <span class="lang-cn-only">全部动态</span>
+        <span class="lang-en-only">All Posts</span>
+      </div>
+      <div id="navDeleted" class="nav-item" style="display: none; color: var(--danger);">
+        <span>🗑️</span>
+        <span class="lang-cn-only">已删除记录</span>
+        <span class="lang-en-only">Deleted Logs</span>
+      </div>
+
+      <div style="margin-top: 1.5rem; padding-left: 1rem; font-size: 0.8rem; color: var(--text-muted); font-weight: 700; margin-bottom: 0.5rem;">
+        <span class="lang-cn-only">推荐话题</span>
+        <span class="lang-en-only">Trending</span>
+      </div>
+      <div id="chips" style="padding: 0 0.5rem;"></div>
+    </div>
+  </aside>
+
+  <main class="feed-col">
+    <div class="search-bar-card">
+      <input id="q" class="search-input i18n-attr"
+             data-attr="placeholder"
+             data-cn="搜索内容..."
+             data-en="Search content..."
+             placeholder="搜索内容...">
+      <button id="doSearch" class="btn btn-primary">
+        <span class="lang-cn-only">搜索</span>
+        <span class="lang-en-only">Search</span>
+      </button>
+    </div>
+
+    <div id="pinned"></div>
+
+    <div id="feed"></div>
+  </main>
+
+  <aside class="right-col" id="rightPanel">
+    <div class="detail-panel">
+      <div id="detailContent">
+        <div class="detail-placeholder">
+          <div style="font-size: 3rem; margin-bottom: 1rem;">👈</div>
+          <p>
+            <span class="lang-cn-only">点击左侧帖子查看详情</span>
+            <span class="lang-en-only">Select a post to view details</span>
+          </p>
+        </div>
+      </div>
+      <button class="btn btn-ghost" onclick="closeDetail()" style="margin-top: 1rem; width: 100%; display: none;" id="closeDetailBtn">
+        <span class="lang-cn-only">返回列表</span>
+        <span class="lang-en-only">Back</span>
+      </button>
+    </div>
+  </aside>
+
+</div>
+
+<div id="loginModal" class="modal">
+  <div class="modal-box">
+    <h3 style="margin-bottom: 1rem;">
+      <span class="lang-cn-only">管理员验证</span>
+      <span class="lang-en-only">Admin Verification</span>
+    </h3>
+    <input id="adminUser" class="search-input i18n-attr" style="width: 100%; margin-bottom: 10px;"
+           data-attr="placeholder" data-cn="用户名" data-en="Username" placeholder="用户名">
+    <input id="adminPass" class="search-input i18n-attr" style="width: 100%; margin-bottom: 1rem;"
+           data-attr="placeholder" data-cn="密码" data-en="Password"
+           placeholder="密码" type="password">
+    <div id="loginError" style="color: var(--danger); font-size: 0.85rem; margin-bottom: 1rem; display: none;">
+      <span class="lang-cn-only">验证失败</span>
+      <span class="lang-en-only">Failed</span>
+    </div>
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+      <button id="cancelLogin" class="btn btn-ghost">
+        <span class="lang-cn-only">取消</span>
+        <span class="lang-en-only">Cancel</span>
+      </button>
+      <button id="confirmLogin" class="btn btn-primary">
+        <span class="lang-cn-only">确认登录</span>
+        <span class="lang-en-only">Confirm</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="../tools/decrypt-lib.js"></script>
+<script src="../tools/lang-switch.js"></script>
+<script src="../tools/config-loader.js"></script>
+<script src="wall-app.js"></script>
+
+<script>
+  window.reloadConfig = async function(lang) {
+    try {
+      await UnifiedLoader.load(
+              'wall-config',
+              'WALL_CONFIG',
+              'ENCRYPTED_WALL_CONFIG',
+              lang
+      );
+
+      // 重新初始化 Wall App (调用 wall-app.js 里的函数)
+      if (typeof initializeWallApp === 'function') {
+        initializeWallApp();
+      }
+    } catch(e) {
+      console.error("Wall Load Failed", e);
+    }
+  };
+
+  (async function() {
+    const currentLang = localStorage.getItem('app_lang') || 'cn';
+    await window.reloadConfig(currentLang);
+  })();
+</script>
+</body>
+</html>
