@@ -1,0 +1,328 @@
+:root {
+    --cctv-bg: #050505;
+    --cctv-grid: #1a1a1a;
+    --cctv-green: #00ff41;
+    --cctv-green-dim: rgba(0, 255, 65, 0.2);
+    --cctv-red: #ff3333;
+    --cctv-text: #e0e0e0;
+    --cctv-panel: #111;
+    --cctv-border: #333;
+
+    --scan-line: rgba(0, 255, 65, 0.03);
+    --font-mono: "Consolas", "Monaco", "Courier New", monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: var(--font-mono); }
+
+body {
+    background-color: var(--cctv-bg);
+    color: var(--cctv-text);
+    height: 100vh;
+    overflow: hidden;
+    /* 细微的网格背景 */
+    background-image:
+            linear-gradient(var(--cctv-grid) 1px, transparent 1px),
+            linear-gradient(90deg, var(--cctv-grid) 1px, transparent 1px);
+    background-size: 20px 20px;
+}
+
+/* 屏幕扫描线特效 */
+body::after {
+    content: " ";
+    display: block;
+    position: absolute;
+    top: 0; left: 0; bottom: 0; right: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+    z-index: 999;
+    background-size: 100% 2px, 3px 100%;
+    pointer-events: none;
+}
+
+/* 通用组件 */
+.btn {
+    background: black;
+    border: 1px solid var(--cctv-green);
+    color: var(--cctv-green);
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: 0.2s;
+}
+.btn:hover {
+    background: var(--cctv-green);
+    color: black;
+    box-shadow: 0 0 10px var(--cctv-green);
+}
+.btn:disabled {
+    border-color: #555;
+    color: #555;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.input-box {
+    background: black;
+    border: 1px solid var(--cctv-border);
+    color: var(--cctv-green);
+    padding: 0.5rem;
+    width: 100%;
+    outline: none;
+    font-size: 1rem;
+}
+.input-box:focus {
+    border-color: var(--cctv-green);
+}
+
+/* 布局 */
+.layout-container {
+    display: grid;
+    grid-template-columns: 250px 1fr;
+    height: 100vh;
+}
+
+/* 左侧栏 */
+.sidebar {
+    background: var(--cctv-panel);
+    border-right: 1px solid var(--cctv-border);
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    z-index: 10;
+}
+
+.brand {
+    font-size: 1.2rem;
+    color: var(--cctv-green);
+    border-bottom: 2px solid var(--cctv-green);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+    text-shadow: 0 0 5px var(--cctv-green);
+}
+
+.map-list-item {
+    padding: 0.8rem;
+    border: 1px solid var(--cctv-border);
+    cursor: pointer;
+    color: #888;
+    transition: 0.2s;
+}
+.map-list-item:hover {
+    border-color: var(--cctv-text);
+    color: var(--cctv-text);
+}
+.map-list-item.active {
+    border-color: var(--cctv-green);
+    color: var(--cctv-green);
+    background: rgba(0, 255, 65, 0.05);
+}
+
+/* 主视图 */
+.main-view {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 2rem;
+    overflow: hidden;
+}
+
+/* 地图容器 */
+.monitor-screen {
+    flex: 1;
+    position: relative;
+    border: 4px solid #333;
+    background: black;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    overflow: hidden;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 实际的地图绘制层 */
+.map-layer {
+    position: relative;
+    /* Aspect Ratio 由 JS 动态设置 */
+    background:
+            linear-gradient(#222 1px, transparent 1px),
+            linear-gradient(90deg, #222 1px, transparent 1px);
+    background-size: 5% 5%; /* 相对比例网格 */
+    box-shadow: 0 0 20px rgba(0,0,0,0.8) inset;
+}
+
+/* 区域 Zone */
+.zone-rect, .zone-circle {
+    position: absolute;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    user-select: none;
+}
+.zone-circle { border-radius: 50%; }
+
+/* 角色点 */
+.char-dot {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%); /* 居中定位 */
+    border: 2px solid white;
+    z-index: 10;
+    box-shadow: 0 0 8px currentColor;
+    transition: all 0.5s ease-in-out; /* 移动动画 */
+}
+.char-dot::after {
+    content: attr(data-name);
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 2px 4px;
+    font-size: 10px;
+    white-space: nowrap;
+    border-radius: 2px;
+}
+
+/* 控制栏 */
+.control-bar {
+    background: var(--cctv-panel);
+    border: 1px solid var(--cctv-border);
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    z-index: 10;
+}
+
+.time-display {
+    font-size: 1.5rem;
+    color: var(--cctv-green);
+    font-weight: bold;
+    min-width: 100px;
+    text-align: center;
+}
+
+/* 简单的滑块样式 */
+input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    background: transparent;
+}
+input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    height: 20px; width: 10px;
+    background: var(--cctv-green);
+    cursor: pointer;
+    margin-top: -8px;
+}
+input[type=range]::-webkit-slider-runnable-track {
+    width: 100%; height: 4px;
+    background: #333;
+}
+
+/* 登录页特定 */
+.login-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+}
+.login-box {
+    width: 400px;
+    border: 2px solid var(--cctv-green);
+    padding: 2rem;
+    background: rgba(0, 0, 0, 0.8);
+    box-shadow: 0 0 20px var(--cctv-green-dim);
+}
+
+/* =========================================
+   多语言适配 (i18n Support) - 补丁
+   ========================================= */
+
+/* 默认隐藏所有多语言特定元素，防止加载时闪烁 */
+.lang-cn-only, .lang-en-only {
+    display: none !important;
+}
+
+/* 中文模式：显示中文元素 */
+body.lang-cn .lang-cn-only {
+    display: inline-block !important;
+}
+/* 英文模式：显示英文元素 */
+body.lang-en .lang-en-only {
+    display: inline-block !important;
+}
+
+/* 针对块级元素 (div) 的辅助显示规则，保持布局正常 */
+body.lang-cn div.lang-cn-only,
+body.lang-en div.lang-en-only {
+    display: block !important;
+}
+
+.zone-label {
+    position: absolute;
+    z-index: 20; /* 关键：设置为 20，确保高于人物点 (z-index: 10) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.6); /* 稍微调亮一点 */
+    font-size: 0.9rem;
+    pointer-events: none; /* 关键：让鼠标穿透文字，不影响下方点击 */
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); /* 加阴影，防止背景太亮看不清 */
+    user-select: none;
+}
+
+/* =========================================
+   密码显隐按钮 - 监控系统风格
+   ========================================= */
+.eye-btn {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    padding: 5px;
+    cursor: pointer;
+
+    /* 核心颜色：继承 CCTV 绿色 */
+    color: var(--cctv-green);
+    opacity: 0.5; /* 默认半透明，不抢眼 */
+    transition: all 0.2s;
+
+    /* 确保层级在输入框之上 */
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.eye-btn:hover {
+    opacity: 1;
+    /* 增加由于电子管过载产生的发光效果 */
+    text-shadow: 0 0 8px var(--cctv-green);
+    filter: drop-shadow(0 0 2px var(--cctv-green));
+}
+
+.eye-btn:active {
+    transform: translateY(-50%) scale(0.95);
+}
+
+/* 修复 input 在有图标时的样式，确保光标不乱跑 */
+.input-box {
+    /* 维持原有的 input-box 样式，这里只是为了确保 display 正确 */
+    display: block;
+}

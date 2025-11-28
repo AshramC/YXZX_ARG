@@ -108,7 +108,8 @@
             </div>
         </div>
 
-        <div class="window" id="win-tasks" data-app="tasks" style="display:none; left: 20vw; top: 15vh; width: 400px; height: 550px;">
+        <div class="window" id="win-tasks" data-app="tasks" style="display:none; left: 20vw; top: 15vh; width: 400px; height: 680px;">
+
             <div class="title-bar" style="background: #2563eb;">
                 <span class="win-title">
                     <span class="lang-cn-only">📋 异象中学小助手</span>
@@ -118,41 +119,59 @@
                     <button class="win-btn close">×</button>
                 </div>
             </div>
+
             <div class="win-content task-manager-layout">
+
                 <div class="task-section-main">
+
                     <div class="section-header">
                         <span class="lang-cn-only">主流程</span>
                         <span class="lang-en-only">Main Storyline</span>
                     </div>
 
-                    <div style="padding: 12px 16px; background: #fff1f2; border-bottom: 1px solid #e2e8f0;">
-                        <div style="font-weight: 700; color: #be123c; font-size: 0.9rem; margin-bottom: 4px;">
-                            <span class="lang-cn-only">⚠️ 当前任务目标</span>
-                            <span class="lang-en-only">⚠️ CURRENT OBJECTIVE</span>
+                    <div class="task-alert-card">
+                        <div class="task-alert-title">
+                            <span>⚠️</span>
+                            <span class="lang-cn-only">当前任务目标</span>
+                            <span class="lang-en-only">CURRENT OBJECTIVE</span>
                         </div>
-                        <div style="font-size: 0.9rem; color: #881337; line-height: 1.4;">
+                        <div class="task-alert-body">
                             <span class="lang-cn-only">调查最近发生的学生失踪事件。</span>
                             <span class="lang-en-only">Investigate the recent student disappearances.</span>
                         </div>
                     </div>
 
                     <div id="taskListMain" class="task-list"></div>
-                </div>
-                <div class="task-section-hidden collapsed" id="hiddenSection">
-                    <div class="section-header toggle-header" id="hiddenHeader">
-                        <span>
-                            <span class="arrow">▶</span> 
-                            <span class="lang-cn-only">隐藏内容</span>
-                            <span class="lang-en-only">Hidden Content</span>
-                        </span>
-                        <span class="badge-count" id="hiddenCount">0/0</span>
+
+                    <div class="task-section-hidden collapsed" id="detectiveSection" style="border-top: 1px solid #cbd5e1; background: #f0fdf4;">
+                        <div class="section-header toggle-header" id="detectiveHeader" style="background: #dcfce7; color: #166534;">
+                            <span>
+                                <span class="arrow">▶</span>
+                                <span class="lang-cn-only">🕵️ 校园名侦探</span>
+                                <span class="lang-en-only">🕵️ Detective Mode</span>
+                            </span>
+                            <span class="badge-count" id="detectiveCount" style="background: rgba(22, 101, 52, 0.1);">0/0</span>
+                        </div>
+                        <div class="hidden-content-wrapper">
+                            <div id="taskListDetective" class="task-list"></div>
+                        </div>
                     </div>
-                    <div class="hidden-content-wrapper">
-                        <div id="taskListHidden" class="task-list"></div>
+
+                    <div class="task-section-hidden collapsed" id="hiddenSection" style="border-top: 1px solid #cbd5e1; background: #e2e8f0;">
+                        <div class="section-header toggle-header" id="hiddenHeader">
+                            <span>
+                                <span class="arrow">▶</span>
+                                <span class="lang-cn-only">隐藏内容</span>
+                                <span class="lang-en-only">Hidden Content</span>
+                            </span>
+                            <span class="badge-count" id="hiddenCount">0/0</span>
+                        </div>
+                        <div class="hidden-content-wrapper">
+                            <div id="taskListHidden" class="task-list"></div>
+                        </div>
                     </div>
-                </div>
-            </div>
-        </div>
+
+                </div> </div> </div>
 
     </div>
 

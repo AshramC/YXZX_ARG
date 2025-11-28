@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>监控视图 - 异象中学</title>
+    <link rel="stylesheet" href="monitor-style.css">
+</head>
+<body>
+
+<div class="layout-container">
+    <aside class="sidebar">
+        <div class="brand">
+            <span class="lang-cn-only">异象中学监控</span>
+            <span class="lang-en-only">ANOMALY HIGH CCTV</span>
+        </div>
+
+        <div style="margin-bottom: 1rem; border-bottom: 1px solid #333; padding-bottom: 1rem;">
+            <div style="font-size: 0.8rem; color: #666; margin-bottom: 0.5rem;">
+                <span class="lang-cn-only">ARCHIVE DATE / 档案日期</span>
+                <span class="lang-en-only">ARCHIVE DATE</span>
+            </div>
+            <select id="dateSelector" class="btn" style="width: 100%; text-align: left;" onchange="switchDate(this.value)">
+            </select>
+        </div>
+
+        <div style="font-size: 0.8rem; color: #666; margin-bottom: 0.5rem;">CAMERAS / 地点列表</div>
+        <div id="mapList"></div>
+
+        <div style="margin-top: auto;">
+            <div id="userInfo" style="margin-bottom: 1rem; font-size: 0.8rem; color: var(--cctv-green);">
+                OPERATOR: --
+            </div>
+            <button onclick="logout()" class="btn" style="width: 100%;">LOGOUT</button>
+            <div style="margin-top: 1rem;">
+                <select class="lang-selector btn" style="width: 100%;">
+                    <option value="cn">中文</option>
+                    <option value="en">English</option>
+                </select>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-view">
+        <div class="monitor-screen" id="screenContainer">
+            <div style="color: #444;">NO SIGNAL</div>
+        </div>
+
+        <div class="control-bar">
+            <button id="playBtn" class="btn" onclick="togglePlay()">▶ PLAY</button>
+
+            <div style="flex: 1; display: flex; flex-direction: column;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: #666; margin-bottom: 4px;">
+                    <span id="labelStart">08:00</span>
+                    <span id="labelEnd">18:00</span>
+                </div>
+                <input type="range" id="timeSlider" min="8" max="18" step="0.001" value="8" oninput="updateTimeFromSlider(this.value)">
+            </div>
+
+            <div class="time-display">
+                <span id="displayTime">08:00</span>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="../tools/decrypt-lib.js"></script>
+<script src="../tools/lang-switch.js"></script>
+<script src="../tools/config-loader.js"></script>
+<script src="../tools/monitor-generator.js"></script>
+
+<script>
+    // === 核心变量 ===
+    let currentMapId = null;
+    let currentDate = null; // 当前选中的日期
+    let currentTime = 8.000;
+    let isPlaying = false;
+    let animationFrameId = null;
+    let lastTimestamp = 0;
+
+    // === 配置: 1小时在现实中播放多久 (毫秒) ===
+    const DURATION_PER_HOUR = 10000;
+
+    // === 工具：哈希种子 (用于生成固定的随机值) ===
+    function getHashSeed(str) {
+        let val = 0;
+        for (let i = 0; i < str.length; i++) {
+            val = ((val << 5) - val) + str.charCodeAt(i);
+            val |= 0; // 强制转换为32位整数
+        }
+        return Math.abs(val); // 确保是正数
+    }
+
+    // === 工具：确定性随机偏移 (普通房间用) ===
+    function getStableOffset(str) {
+        const seed = getHashSeed(str);
+        return {
+            x: Math.sin(seed) * 1.5,
+            y: Math.cos(seed) * 1.5
+        };
+    }
+
+    // === 工具：确定性场外坐标 (进出场动画用) ===
+    function getStableExitPoint(name, timeIndex) {
+        let seed = timeIndex + getHashSeed(name);
+        const rand = (Math.sin(seed) * 10000) - Math.floor(Math.sin(seed) * 10000);
+        const side = Math.floor(rand * 4);
+        const position = (rand * 100) % 100;
+
+        // 0:上, 1:右, 2:下, 3:左
+        switch(side) {
+            case 0: return { x: position, y: -10 };
+            case 1: return { x: 110, y: position };
+            case 2: return { x: position, y: 110 };
+            case 3: return { x: -10, y: position };
+        }
+        return { x: -10, y: -10 };
+    }
+
+    // === [新增] 工具：获取角色专属的时间延迟 (0 ~ 0.2小时, 约0-12分钟) ===
+    // 作用：让每个人不仅仅是位置不同，动起来的时间也有先后
+    function getPersonalDelay(name) {
+        if (!name) return 0;
+        const seed = getHashSeed(name);
+        // 取模生成 0~20 的整数，除以100得到 0.00 ~ 0.20
+        // 比如：0.1 代表延后 6 分钟出发
+        return (seed % 20) / 100.0;
+    }
+
+    // === [核心计算] 获取区域内的动态坐标 ===
+    // === [核心计算] 获取区域内的动态坐标 (增强版) ===
+    function getZoneDynamicPosition(mapId, zoneId, charName, timeFloat, arrivalHour) {
+        const zone = MapConfig[mapId].zones.find(z => z.id === zoneId);
+        if (!zone) return null;
+
+        const centerX = zone.x + zone.w / 2;
+        const centerY = zone.y + zone.h / 2;
+
+        // 1. 椭圆跑圈 (保持不变)
+        if (zone.pathType === 'ellipse') {
+            const rx = zone.w / 2;
+            const ry = zone.h / 2;
+            const speed = 5.0;
+            const personalOffset = getHashSeed(charName) % 100;
+            const angle = (timeFloat * speed) + personalOffset;
+            return {
+                x: centerX + rx * Math.cos(angle),
+                y: centerY + ry * Math.sin(angle)
+            };
+        }
+
+        // 2. 直线运动逻辑 (增强方向控制)
+        if (zone.pathType === 'linear-h' || zone.pathType === 'linear-v') {
+            // 获取个人延迟
+            const delay = getPersonalDelay(charName);
+
+            // 计算经过时间
+            const elapsed = timeFloat - arrivalHour - delay;
+            const duration = 0.5; // 走完单程耗时
+
+            // 计算进度 (0.0 ~ 1.0)
+            // Math.max(0, ...) 确保了如果处于延迟期(elapsed < 0)，进度强制为0，人物会钉在起点
+            const progress = Math.max(0, Math.min(1, elapsed / duration));
+
+            // [新增] 获取方向配置 (默认 1 为正向，-1 为反向)
+            // 你的 maps-config.js 以后可以给 zone 加 "direction": -1 属性来实现逆行
+            const direction = zone.direction || 1;
+
+            // 只有到达终点(progress=1)后才允许稍微散开(jitter)，防止起跑时就在终点乱晃
+            const jitterBase = (getHashSeed(charName) % 10) / 5.0;
+            const currentJitter = progress >= 1 ? jitterBase : 0;
+
+            if (zone.pathType === 'linear-h') {
+                // 水平移动计算
+                // distinctStart: 如果方向是1，起点是 x；如果方向是-1，起点是 x+w (右侧)
+                const startX = direction === 1 ? zone.x : (zone.x + zone.w);
+
+                // totalDistance: 如果方向是1，移动距离是 +w；如果方向是-1，移动距离是 -w
+                const totalDistance = direction === 1 ? zone.w : -zone.w;
+
+                return {
+                    x: startX + (totalDistance * progress),
+                    y: centerY + currentJitter // 高度居中
+                };
+            } else {
+                // 垂直移动计算 (同理)
+                const startY = direction === 1 ? zone.y : (zone.y + zone.h);
+                const totalDistance = direction === 1 ? zone.h : -zone.h;
+
+                return {
+                    x: centerX + currentJitter, // 宽度居中
+                    y: startY + (totalDistance * progress)
+                };
+            }
+        }
+
+        // 3. 普通房间 (Static)
+        return { x: centerX, y: centerY, isStatic: true };
+    }
+
+    window.reloadConfig = async function(lang) {
+        try {
+            // 1. 加载所有静态配置
+            await UnifiedLoader.load('monitor-config', 'MonitorConfig', 'ENCRYPTED_MONITOR_CONFIG', lang);
+            await UnifiedLoader.load('maps-config', 'MapConfig', 'ENCRYPTED_MAP_CONFIG', lang);
+            // 这里还需要加载 school 和 const，以便生成器查询档案
+            await UnifiedLoader.load('../school-system/school-config', 'SchoolSystemConfig', 'ENCRYPTED_SCHOOL_CONFIG', lang);
+            // 2. [新增] 运行生成器进行“数据水合”
+            // 这会直接修改内存中的 window.MonitorConfig 对象
+            if (window.MonitorGenerator) {
+                window.MonitorGenerator.run(
+                    window.MonitorConfig,
+                    window.SchoolSystemConfig,
+                    window.MapConfig
+                );
+            }
+
+            // 3. 初始化系统
+            initSystem();
+        } catch(e) { console.error(e); }
+    };
+
+    function initSystem() {
+        // 1. 获取 Session 数据
+        const userStr = sessionStorage.getItem('monitor_user');
+        if (!userStr) { window.location.href = 'monitor-login.html'; return; }
+        const sessionUser = JSON.parse(userStr);
+
+        // 2. 重新从 Config 中查找用户 (修复多语言切换 Operator 不变的问题)
+        let currentUser = sessionUser;
+        if (window.MonitorConfig && window.MonitorConfig.accounts) {
+            const freshUser = MonitorConfig.accounts.find(a => a.id === sessionUser.id);
+            if (freshUser) currentUser = freshUser;
+        }
+
+        const uName = (typeof currentUser.displayName === 'object') ?
+            (currentUser.displayName.cn || currentUser.id) :
+            currentUser.displayName;
+
+        document.getElementById('userInfo').textContent = `OPERATOR: ${uName}`;
+
+        // 3. 初始化滑块
+        const settings = MonitorConfig.settings;
+        const slider = document.getElementById('timeSlider');
+        slider.min = settings.startHour;
+        slider.max = settings.endHour;
+        document.getElementById('labelStart').textContent = formatTime(settings.startHour);
+        document.getElementById('labelEnd').textContent = formatTime(settings.endHour);
+
+        // 4. 初始化日期选择器
+        initDateSelector();
+
+        // 5. 渲染地图列表
+        renderMapList();
+
+        // 6. 恢复或初始化地图视图
+        if (currentMapId && MapConfig[currentMapId]) {
+            switchMap(currentMapId);
+        } else {
+            const firstMapId = Object.keys(MapConfig)[0];
+            if (firstMapId) switchMap(firstMapId);
+        }
+
+        // 7. 强制重置一次时间到起点，确保初始画面正确
+        currentTime = settings.startHour;
+        slider.value = currentTime;
+        document.getElementById('displayTime').textContent = formatTime(currentTime);
+        updateScene(currentTime);
+    }
+
+    // === 日期与地图切换 ===
+
+    function initDateSelector() {
+        const selector = document.getElementById('dateSelector');
+        selector.innerHTML = '';
+
+        const scenes = MonitorConfig.scenes || {};
+        const dates = Object.keys(scenes).sort();
+        const lang = localStorage.getItem('app_lang') || 'cn';
+
+        if (dates.length === 0) {
+            const opt = document.createElement('option');
+            opt.text = lang === 'en' ? "NO DATA" : "暂无数据";
+            selector.add(opt);
+            return;
+        }
+
+        dates.forEach(dateStr => {
+            const opt = document.createElement('option');
+            opt.value = dateStr;
+            opt.text = dateStr;
+            selector.add(opt);
+        });
+
+        if (currentDate && dates.includes(currentDate)) {
+            selector.value = currentDate;
+        } else {
+            currentDate = dates[0];
+            selector.value = currentDate;
+        }
+    }
+
+    function switchDate(newDate) {
+        currentDate = newDate;
+
+        // [核心需求] 切换日期时重置进度
+        stopPlay();
+
+        const btn = document.getElementById('playBtn');
+        btn.textContent = "▶ PLAY";
+        btn.style.background = "black";
+        btn.style.color = "var(--cctv-green)";
+
+        const startHour = MonitorConfig.settings.startHour;
+        currentTime = startHour;
+
+        document.getElementById('timeSlider').value = currentTime;
+        document.getElementById('displayTime').textContent = formatTime(currentTime);
+
+        updateScene(currentTime);
+    }
+
+    function renderMapList() {
+        const listEl = document.getElementById('mapList');
+        listEl.innerHTML = '';
+        Object.values(MapConfig).forEach(map => {
+            const div = document.createElement('div');
+            div.className = 'map-list-item';
+            div.id = `nav-${map.id}`;
+            div.textContent = map.name;
+            div.onclick = () => switchMap(map.id);
+            listEl.appendChild(div);
+        });
+    }
+
+    function switchMap(mapId) {
+        currentMapId = mapId;
+        document.querySelectorAll('.map-list-item').forEach(el => el.classList.remove('active'));
+        document.getElementById(`nav-${mapId}`).classList.add('active');
+        renderMapFrame();
+        updateScene(currentTime);
+    }
+
+    // === 地图渲染 (Z-Index 修复) ===
+    function renderMapFrame() {
+        const container = document.getElementById('screenContainer');
+        const mapData = MapConfig[currentMapId];
+        if (!mapData) return;
+
+        container.innerHTML = '';
+        const mapLayer = document.createElement('div');
+        mapLayer.className = 'map-layer';
+        mapLayer.id = 'currentMapLayer';
+        mapLayer.style.width = '100%';
+        mapLayer.style.aspectRatio = `${mapData.width} / ${mapData.height}`;
+
+        if (mapData.zones) {
+            mapData.zones.forEach(zone => {
+                // 1. 背景/边框 (Box)
+                const box = document.createElement('div');
+                box.className = zone.type === 'circle' ? 'zone-circle' : 'zone-rect';
+                box.style.left = zone.x + '%';
+                box.style.top = zone.y + '%';
+                box.style.width = zone.w + '%';
+                box.style.height = zone.h + '%';
+                box.dataset.zoneId = zone.id;
+
+                // 2. 独立文字标签 (Label)
+                const label = document.createElement('div');
+                label.className = 'zone-label';
+                label.style.left = zone.x + '%';
+                label.style.top = zone.y + '%';
+                label.style.width = zone.w + '%';
+                label.style.height = zone.h + '%';
+                label.textContent = zone.name;
+
+                mapLayer.appendChild(box);
+                mapLayer.appendChild(label);
+            });
+        }
+        container.appendChild(mapLayer);
+    }
+
+    // === [核心] 场景更新逻辑 (含 DISAPPEAR 逻辑 + 延迟起步) ===
+    function updateScene(timeFloat) {
+        if (!currentMapId || !currentDate) return;
+        const mapLayer = document.getElementById('currentMapLayer');
+        if (!mapLayer) return;
+
+        // 清除旧点
+        mapLayer.querySelectorAll('.char-dot').forEach(el => el.remove());
+
+        // 日期 -> 地图 -> 角色数据
+        const dateData = MonitorConfig.scenes[currentDate];
+        if (!dateData) return;
+
+        const sceneData = dateData[currentMapId];
+        if (!sceneData) return;
+
+        const startHour = MonitorConfig.settings.startHour;
+        const relativeTime = timeFloat - startHour;
+
+        const prevIndex = Math.floor(relativeTime);
+        const trackLength = 24; // 假设一天24小时
+        const nextIndex = (prevIndex + 1) % trackLength;
+
+        // 原始的时间进度 (0.0 ~ 1.0)
+        const ratio = relativeTime - prevIndex;
+
+        // 辅助：获取到达时间
+        const getArrivalHour = (track, idx) => {
+            if (idx < 0) return startHour;
+            const currentZone = track[idx];
+            if (!currentZone || currentZone === 'DISAPPEAR') return startHour + idx;
+            let i = idx;
+            while (i > 0 && track[i - 1] === currentZone) {
+                i--;
+            }
+            return startHour + i;
+        };
+
+        // 辅助：获取原始坐标
+        const getRawPos = (zoneId, t, arrT, charName) => {
+            if (!zoneId || zoneId === 'DISAPPEAR') return null;
+            return getZoneDynamicPosition(currentMapId, zoneId, charName, t, arrT);
+        }
+
+        sceneData.forEach(char => {
+            if (!char.track) return;
+
+            const zoneIdPrev = char.track[prevIndex];
+            const zoneIdNext = char.track[nextIndex];
+
+            if (nextIndex < prevIndex && zoneIdPrev === 'DISAPPEAR') {
+                return; // 直接跳过渲染，屏幕上什么都没有
+            }
+
+            // 1. 获取基础坐标
+            const arrTimePrev = getArrivalHour(char.track, prevIndex);
+            const arrTimeNext = getArrivalHour(char.track, nextIndex);
+
+            // 遇到 DISAPPEAR，视为切换动作，t 取整点
+            const tPrev = (zoneIdPrev === zoneIdNext) ? timeFloat : (startHour + prevIndex);
+            const tNext = (zoneIdPrev === zoneIdNext) ? timeFloat : (startHour + nextIndex);
+
+            let posPrev = getRawPos(zoneIdPrev, tPrev, arrTimePrev, char.name);
+            let posNext = getRawPos(zoneIdNext, tNext, arrTimeNext, char.name);
+
+            // 2. 进出场与瞬移逻辑
+            if (posPrev && !posNext) {
+                if (zoneIdNext !== 'DISAPPEAR') {
+                    posNext = getStableExitPoint(char.name, prevIndex);
+                }
+            }
+            if (!posPrev && posNext) {
+                posPrev = getStableExitPoint(char.name, nextIndex); // 进场
+            }
+
+            if (!posPrev || !posNext) return;
+
+            // 3. 插值与延迟计算 [核心修改区域]
+            let finalX, finalY;
+
+            if (zoneIdPrev === zoneIdNext && posPrev) {
+                // 情况 A: 在同一个房间停留/移动
+                // (getZoneDynamicPosition 内部已经处理了延迟，这里直接用)
+                finalX = posPrev.x;
+                finalY = posPrev.y;
+            } else {
+                // 情况 B: 跨房间移动 (从 A 走到 B)
+
+                // [修改点] 获取该角色的个人延迟
+                const delay = getPersonalDelay(char.name);
+
+                // [修改点] 计算修正后的进度
+                // 逻辑：如果当前时间还没超过 delay，进度保持 0 (还没出发)
+                // 超过 delay 后，需要稍微加速，以便在整点前赶到终点
+                let adjustedRatio = (ratio - delay) / (1.0 - delay);
+
+                // 限制在 0 ~ 1 之间
+                adjustedRatio = Math.max(0, Math.min(1, adjustedRatio));
+
+                finalX = posPrev.x + (posNext.x - posPrev.x) * adjustedRatio;
+                finalY = posPrev.y + (posNext.y - posPrev.y) * adjustedRatio;
+            }
+
+            // 4. 叠加抖动 (仅静止房间)
+            if (posPrev && posPrev.isStatic && zoneIdPrev === zoneIdNext) {
+                const offset = getStableOffset(char.name);
+                finalX += offset.x;
+                finalY += offset.y;
+            }
+
+            // 5. 绘制点
+            const dot = document.createElement('div');
+            dot.className = 'char-dot';
+            dot.style.backgroundColor = char.color;
+            dot.style.color = char.color;
+            dot.setAttribute('data-name', char.name);
+            dot.style.left = finalX + '%';
+            dot.style.top = finalY + '%';
+            mapLayer.appendChild(dot);
+        });
+    }
+
+    // === 播放控制 ===
+    function formatTime(floatHour) {
+        const h = Math.floor(floatHour);
+        const m = Math.floor((floatHour - h) * 60);
+        const hStr = h < 10 ? '0'+h : h;
+        const mStr = m < 10 ? '0'+m : m;
+        return `${hStr}:${mStr}`;
+    }
+
+    function updateTimeFromSlider(val) {
+        currentTime = parseFloat(val);
+        document.getElementById('displayTime').textContent = formatTime(currentTime);
+        updateScene(currentTime);
+    }
+
+    function togglePlay() {
+        const btn = document.getElementById('playBtn');
+        if (isPlaying) {
+            stopPlay();
+            btn.textContent = "▶ PLAY";
+            btn.style.background = "black";
+            btn.style.color = "var(--cctv-green)";
+        } else {
+            startPlay();
+            btn.textContent = "❚❚ STOP";
+            btn.style.background = "var(--cctv-green)";
+            btn.style.color = "black";
+        }
+    }
+
+    function startPlay() {
+        if (isPlaying) return;
+        isPlaying = true;
+        lastTimestamp = performance.now();
+        animationFrameId = requestAnimationFrame(gameLoop);
+    }
+
+    function stopPlay() {
+        isPlaying = false;
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    }
+
+    function gameLoop(timestamp) {
+        if (!isPlaying) return;
+        const deltaTime = timestamp - lastTimestamp;
+        lastTimestamp = timestamp;
+
+        const hourIncrement = deltaTime / DURATION_PER_HOUR;
+        currentTime += hourIncrement;
+
+        const maxHour = MonitorConfig.settings.endHour;
+        const minHour = MonitorConfig.settings.startHour;
+
+        // 循环播放
+        if (currentTime > maxHour) currentTime = minHour;
+
+        document.getElementById('timeSlider').value = currentTime;
+        document.getElementById('displayTime').textContent = formatTime(currentTime);
+        updateScene(currentTime);
+
+        animationFrameId = requestAnimationFrame(gameLoop);
+    }
+
+    function logout() {
+        sessionStorage.removeItem('monitor_user');
+        window.location.href = 'monitor-login.html';
+    }
+
+    (async function(){
+        const lang = localStorage.getItem('app_lang') || 'cn';
+        await window.reloadConfig(lang);
+    })();
+</script>
+</body>
+</html>

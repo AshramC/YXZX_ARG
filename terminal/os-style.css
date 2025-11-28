@@ -109,9 +109,32 @@ body {
 
 /* 任务窗口 */
 .task-manager-layout { display: flex; flex-direction: column; height: 100%; background: #f1f5f9; color: #1e293b; }
-.task-section-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-.task-section-hidden { flex: 0 0 auto; display: flex; flex-direction: column; border-top: 1px solid #cbd5e1; background: #e2e8f0; transition: all 0.3s ease; }
-.section-header { padding: 12px 16px; font-weight: 700; font-size: 0.85rem; color: #475569; background: #e2e8f0; border-bottom: 1px solid #cbd5e1; display: flex; align-items: center; justify-content: space-between; }
+.task-section-main {
+    flex: 1;
+    display: block;        /* [修改] 原为 flex */
+    overflow-y: auto;      /* [修改] 开启整体垂直滚动 */
+    overflow-x: hidden;
+    position: relative;
+}
+.task-section-hidden {
+    /* [删除] flex: 0 0 auto; */
+    /* [删除] border-top... (如果都在一个容器里，边框样式可能需要微调) */
+    display: flex;
+    flex-direction: column;
+    background: #e2e8f0;
+    transition: all 0.3s ease;
+}
+.section-header {
+    padding: 10px 12px;     /* [修改] 原为 12px 16px */
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #475569;
+    background: #e2e8f0;
+    border-bottom: 1px solid #cbd5e1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
 .toggle-header { cursor: pointer; background: #cbd5e1; color: #334155; }
 .toggle-header:hover { background: #94a3b8; color: white; }
 .toggle-header .arrow { display: inline-block; width: 14px; transition: transform 0.3s; font-size: 0.7rem; }
@@ -119,8 +142,19 @@ body {
 .task-section-hidden:not(.collapsed) .arrow { transform: rotate(90deg); }
 .hidden-content-wrapper { overflow-y: auto; max-height: 200px; transition: max-height 0.3s ease; }
 .task-section-hidden.collapsed .hidden-content-wrapper { max-height: 0; border: none; }
-.task-list { padding: 10px 16px; overflow-y: auto; }
-.task-item { display: flex; align-items: flex-start; padding: 8px 0; border-bottom: 1px dashed #e2e8f0; font-size: 0.9rem; }
+.task-list {
+    padding: 8px 12px;
+    overflow-y: visible;   /* [修改] 原为 auto，现在不需要它自己滚了 */
+    height: auto;          /* [新增] 自适应高度 */
+}
+
+.task-item {
+    display: flex;
+    align-items: flex-start;
+    padding: 6px 0;         /* [修改] 原为 8px 0 */
+    border-bottom: 1px dashed #e2e8f0;
+    font-size: 0.85rem;     /* [修改] 原为 0.9rem，稍微改小一点 */
+}
 .task-item:last-child { border-bottom: none; }
 .task-item input[type="checkbox"] { margin-right: 10px; margin-top: 3px; accent-color: #2563eb; cursor: pointer; }
 .task-item label { cursor: pointer; line-height: 1.4; flex: 1; }
@@ -261,17 +295,15 @@ body {
 
 /* === 章节分割栏样式 === */
 .task-chapter-header {
-    background: #f1f5f9; /* 浅灰背景 */
-    color: #64748b;      /* 深灰文字 */
-    padding: 8px 12px;
-    font-size: 0.8rem;
+    background: #f1f5f9;
+    color: #64748b;
+    padding: 6px 12px;      /* [修改] 原为 8px 12px */
+    font-size: 0.75rem;     /* [修改] 字体改小，更精致 */
     font-weight: 700;
     letter-spacing: 0.5px;
     border-bottom: 1px solid #e2e8f0;
     border-top: 1px solid #e2e8f0;
-    margin-top: -1px; /* 合并边框 */
-
-    /* 粘性定位：让章节标题在滚动时吸顶，体验更好 */
+    margin-top: -1px;
     position: sticky;
     top: 0;
     z-index: 5;
@@ -281,6 +313,89 @@ body {
 .task-chapter-header:first-child {
     border-top: none;
 }
+/* os-style.css 修改与新增 */
+
+/* 1. 章节标题样式升级 */
+.task-chapter-header {
+    background: #f1f5f9;
+    color: #64748b;
+    padding: 8px 12px; /* 稍微调回一点高度方便点击 */
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #e2e8f0;
+    border-top: 1px solid #e2e8f0;
+    margin-top: -1px;
+
+    /* 关键：设置为 sticky，但现在配合折叠使用体验更好 */
+    position: sticky;
+    top: 0;
+    z-index: 5;
+
+    /* [新增] 交互样式 */
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+}
+
+.task-chapter-header:hover {
+    background: #e2e8f0;
+    color: #334155;
+}
+
+/* 2. 箭头动画 */
+.task-chapter-header .arrow {
+    display: inline-block;
+    margin-right: 6px;
+    font-size: 0.7rem;
+    transition: transform 0.3s ease;
+    transform: rotate(0deg); /* 默认展开状态(向下) */
+}
+
+/* 3. 折叠逻辑 */
+/* 当容器被加上 .collapsed 类时 */
+.chapter-wrapper.collapsed .chapter-list {
+    display: none; /* 隐藏列表 */
+}
+
+.chapter-wrapper.collapsed .task-chapter-header .arrow {
+    transform: rotate(-90deg); /* 箭头转向右侧，表示折叠 */
+}
+
+.chapter-wrapper.collapsed .task-chapter-header {
+    border-bottom: 1px solid #e2e8f0; /* 保持底边框 */
+}
+
+/* os-style.css */
+
+/* [新增] 任务目标警告卡片 */
+.task-alert-card {
+    background: #fff1f2;       /* 浅粉背景 */
+    border: 1px solid #fecdd3; /* 深粉边框 */
+    border-radius: 6px;        /* 圆角 */
+    margin: 10px 12px 5px 12px;/* 四周留白，不再紧贴标题 */
+    padding: 10px;
+    box-shadow: 0 2px 4px rgba(225, 29, 72, 0.05); /* 轻微阴影 */
+}
+
+/* 调整里面的文字间距 */
+.task-alert-title {
+    font-weight: 700;
+    color: #be123c;
+    font-size: 0.85rem;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.task-alert-body {
+    font-size: 0.85rem;
+    color: #881337;
+    line-height: 1.4;
+}
+
 
 @media (max-width: 768px) {
     .window { width: 100% !important; height: calc(100% - 48px) !important; top: 0 !important; left: 0 !important; border-radius: 0; }

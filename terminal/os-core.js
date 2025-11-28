@@ -33,20 +33,11 @@ const OS = (function() {
                 // 让玩家确认
                 const ok = window.confirm(confirmMsg);
                 if (!ok) {
-                    // 玩家取消切换：什么都不做，保持当前语言和笔记
                     return;
                 }
 
-                // 玩家确认切换：1) 切换语言 2) 清除旧笔记 3) 刷新
                 localStorage.setItem('app_lang', next);
-
-                // 清掉旧的调查笔记存档，让新语言重新生成初始笔记
                 localStorage.removeItem('GHOST_NOTES');
-
-                // 如果你希望连任务完成进度也跟着重置，可以顺便清这个（可选）：
-                // localStorage.removeItem('GHOST_TASKS_STATE');
-
-                // 刷新页面以应用新语言
                 location.reload();
             });
         }
@@ -55,7 +46,7 @@ const OS = (function() {
         await window.reloadConfig(currentLang);
 
         loadNotesFromStorage();
-        updateTaskProgress();
+        updateTaskProgress(); // 确保这里调用时，函数内部逻辑已完善
 
         setTimeout(() => {
             const boot = document.getElementById('bootScreen');
@@ -69,16 +60,28 @@ const OS = (function() {
 
         // 添加笔记 (双语支持)
         document.getElementById('btnAddNote').addEventListener('click', () => {
-            // 用户输入的笔记无法自动翻译，直接用当前语言占位
             const isEn = localStorage.getItem('app_lang') === 'en';
             addNote(isEn ? "New note..." : "新笔记...");
         });
         document.getElementById('btnClear').addEventListener('click', clearNotes);
 
         document.getElementById('sidebarProgressBtn').addEventListener('click', () => open('tasks'));
-        document.getElementById('hiddenHeader').addEventListener('click', () => {
-            document.getElementById('hiddenSection').classList.toggle('collapsed');
-        });
+
+        // 隐藏任务折叠
+        const hiddenHeader = document.getElementById('hiddenHeader');
+        if (hiddenHeader) {
+            hiddenHeader.addEventListener('click', () => {
+                document.getElementById('hiddenSection').classList.toggle('collapsed');
+            });
+        }
+
+        // [新增] 侦探模块折叠事件 (修复点：确保元素存在才绑定)
+        const detectiveHeader = document.getElementById('detectiveHeader');
+        if (detectiveHeader) {
+            detectiveHeader.addEventListener('click', () => {
+                document.getElementById('detectiveSection').classList.toggle('collapsed');
+            });
+        }
 
         window.addEventListener('message', handleMessage);
         initTools();
@@ -88,7 +91,6 @@ const OS = (function() {
         // 1. Tab 切换
         document.querySelectorAll('.sidebar-tab').forEach(tab => {
             tab.addEventListener('click', () => {
-                // UI 切换
                 document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
                 tab.classList.add('active');
 
@@ -123,7 +125,6 @@ const OS = (function() {
             let result = "";
             try {
                 if (method === 'base64') {
-                    // Base64 解码 (支持中文)
                     result = decodeURIComponent(escape(window.atob(input)));
                 }
                 else if (method === 'url') {
@@ -131,17 +132,17 @@ const OS = (function() {
                 }
                 else if (method === 'caesar') {
                     const shift = parseInt(caesarInput.value) || 13;
-                    result = caesarCipher(input, -shift); // 解密通常是反向位移
+                    result = caesarCipher(input, -shift);
                 }
 
                 outputBox.textContent = result;
-                outputBox.style.color = '#10b981'; // 成功色
+                outputBox.style.color = '#10b981';
                 outputBox.style.borderColor = '#10b981';
-                btnCopy.style.display = 'block'; // 显示复制按钮
+                btnCopy.style.display = 'block';
 
             } catch (e) {
                 outputBox.textContent = "Error: Invalid Format";
-                outputBox.style.color = '#ef4444'; // 失败色
+                outputBox.style.color = '#ef4444';
                 outputBox.style.borderColor = '#ef4444';
                 btnCopy.style.display = 'none';
             }
@@ -152,27 +153,28 @@ const OS = (function() {
             const res = document.getElementById('decodeOutput').textContent;
             if(res) {
                 addNote(`解码结果: ${res}`);
-                // 自动切回笔记 Tab
                 document.querySelector('.sidebar-tab[data-tab="notes"]').click();
             }
         });
     }
 
-    // 凯撒密码算法 (支持大小写，忽略符号)
     function caesarCipher(str, shift) {
         return str.replace(/[a-zA-Z]/g, function (c) {
             const base = c >= 'a' ? 97 : 65;
-            // JavaScript 的 % 运算符处理负数会有问题，需要特殊处理
             return String.fromCharCode(((c.charCodeAt(0) - base + shift) % 26 + 26) % 26 + base);
         });
     }
 
     function initTasksFromConfig() {
         const cfg = window.OS_CONFIG || {};
-        const tasks = cfg.tasks || { main: [], hidden: [] };
+        // [修复点] 确保 detective 默认为空数组
+        const tasks = cfg.tasks || { main: [], hidden: [], detective: [] };
 
         // 渲染主线
         renderTaskList('taskListMain', tasks.main, 'main');
+
+        // [新增] 渲染侦探任务
+        renderTaskList('taskListDetective', tasks.detective || [], 'detective');
 
         // 渲染隐藏
         renderTaskList('taskListHidden', tasks.hidden, 'hidden');
@@ -180,34 +182,64 @@ const OS = (function() {
         updateTaskProgress();
     }
 
-    // 渲染函数：支持遍历章节
+// os-core.js -> renderTaskList (替换原函数)
+
+    // 渲染函数：支持章节折叠
     function renderTaskList(containerId, chapters, type) {
         const container = document.getElementById(containerId);
+        if (!container) return;
+
         container.innerHTML = '';
         const savedState = JSON.parse(localStorage.getItem('GHOST_TASKS_STATE') || '[]');
 
-        // 兼容处理：如果 chapters 是一维数组（旧版结构），将其包装成一个默认章节
+        // 兼容处理：如果 chapters 是一维数组，包装成默认章节
         if (chapters.length > 0 && !chapters[0].list) {
             chapters = [{ title: null, list: chapters }];
         }
 
-        chapters.forEach(chapter => {
-            // 1. 渲染章节标题 (如果有)
+        chapters.forEach((chapter, index) => {
+            // 1. 创建章节容器
+            const chapterWrapper = document.createElement('div');
+            chapterWrapper.className = 'chapter-wrapper';
+
+            // 2. 创建列表容器 (先创建，后面决定是否隐藏)
+            const listContainer = document.createElement('div');
+            listContainer.className = 'chapter-list';
+
+            // 3. 渲染标题 (如果有)
             if (chapter.title) {
                 const header = document.createElement('div');
-                header.className = 'task-chapter-header';
+                header.className = 'task-chapter-header toggle-chapter'; // 增加 toggle 类
 
                 let cnTitle = chapter.title.cn || chapter.title;
                 let enTitle = chapter.title.en || chapter.title;
 
+                // 增加箭头指示器
                 header.innerHTML = `
-                    <span class="lang-cn-only">${cnTitle}</span>
-                    <span class="lang-en-only">${enTitle}</span>
+                    <span>
+                        <span class="arrow">▼</span>
+                        <span class="lang-cn-only">${cnTitle}</span>
+                        <span class="lang-en-only">${enTitle}</span>
+                    </span>
                 `;
-                container.appendChild(header);
+
+                // 绑定点击折叠事件
+                header.addEventListener('click', () => {
+                    chapterWrapper.classList.toggle('collapsed');
+                });
+
+                chapterWrapper.appendChild(header);
             }
 
-            // 2. 渲染该章节下的任务列表
+            // 4. 智能折叠逻辑
+            // 如果不是最后一个章节，且有标题，默认折叠 (collapsed)
+            // 这样玩家进来直接看到最新的第二章，想看第一章再点开
+            const isLastChapter = index === chapters.length - 1;
+            if (!isLastChapter && chapter.title) {
+                chapterWrapper.classList.add('collapsed');
+            }
+
+            // 5. 渲染任务项
             (chapter.list || []).forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'task-item';
@@ -227,8 +259,11 @@ const OS = (function() {
                     </label>
                 `;
                 div.querySelector('input').addEventListener('change', (e) => toggleTask(item.id, e.target.checked));
-                container.appendChild(div);
+                listContainer.appendChild(div);
             });
+
+            chapterWrapper.appendChild(listContainer);
+            container.appendChild(chapterWrapper);
         });
     }
 
@@ -240,55 +275,74 @@ const OS = (function() {
         updateTaskProgress();
     }
 
-    // 进度计算函数：先扁平化再计算
+    // 进度计算函数
     function updateTaskProgress() {
         const cfg = window.OS_CONFIG || {};
+
+        // 1. 获取各模块数据
         const mainChapters = (cfg.tasks && cfg.tasks.main) || [];
         const hiddenChapters = (cfg.tasks && cfg.tasks.hidden) || [];
+        // [新增] 获取侦探数据
+        const detectiveChapters = (cfg.tasks && cfg.tasks.detective) || [];
+
         const savedState = JSON.parse(localStorage.getItem('GHOST_TASKS_STATE') || '[]');
 
-        // 辅助函数：将章节结构扁平化为任务数组
+        // 辅助函数
         const flattenTasks = (chapters) => {
-            // 兼容旧版一维数组
             if (chapters.length > 0 && !chapters[0].list) return chapters;
-            // 新版：提取所有章节的 list 并合并
             return chapters.reduce((acc, chapter) => acc.concat(chapter.list || []), []);
         };
 
         const allMainTasks = flattenTasks(mainChapters);
         const allHiddenTasks = flattenTasks(hiddenChapters);
+        // [修复点] 在这里正确定义 allDetectiveTasks
+        const allDetectiveTasks = flattenTasks(detectiveChapters);
 
-        // 计算主线进度
+        // --- 主线进度 (Total Progress) ---
         let mainDone = 0;
         allMainTasks.forEach(t => { if (savedState.includes(t.id)) mainDone++; });
 
         const totalMain = allMainTasks.length;
         const percent = totalMain === 0 ? 0 : Math.round((mainDone / totalMain) * 100);
 
-        document.getElementById('progressPercent').textContent = `${percent}%`;
-        document.getElementById('progressFill').style.width = `${percent}%`;
+        const progressText = document.getElementById('progressPercent');
+        const progressFill = document.getElementById('progressFill');
+        if(progressText) progressText.textContent = `${percent}%`;
+        if(progressFill) progressFill.style.width = `${percent}%`;
 
-        // 计算隐藏任务数量
+        // --- 隐藏任务计数 ---
         let hiddenDone = 0;
         allHiddenTasks.forEach(t => { if (savedState.includes(t.id)) hiddenDone++; });
-        document.getElementById('hiddenCount').textContent = `${hiddenDone}/${allHiddenTasks.length}`;
+        const hiddenCount = document.getElementById('hiddenCount');
+        if(hiddenCount) hiddenCount.textContent = `${hiddenDone}/${allHiddenTasks.length}`;
+
+        // --- [新增] 侦探任务独立计数 ---
+        let detectiveDone = 0;
+        // [修复点] allDetectiveTasks 现在已经定义，不会报错了
+        allDetectiveTasks.forEach(t => { if (savedState.includes(t.id)) detectiveDone++; });
+
+        const detectiveCount = document.getElementById('detectiveCount');
+        if(detectiveCount) {
+            detectiveCount.textContent = `${detectiveDone}/${allDetectiveTasks.length}`;
+
+            // 样式彩蛋
+            if (allDetectiveTasks.length > 0 && detectiveDone === allDetectiveTasks.length) {
+                detectiveCount.style.backgroundColor = 'rgba(22, 163, 74, 0.3)';
+                detectiveCount.style.fontWeight = 'bold';
+            } else {
+                detectiveCount.style.backgroundColor = 'rgba(22, 101, 52, 0.1)';
+            }
+        }
     }
 
-    // === 笔记系统 (升级：支持双语结构) ===
     function initNotesFromConfig() {
-        // 只有当本地没有笔记时才加载初始配置
         if (localStorage.getItem('GHOST_NOTES') === null) {
             const cfg = window.OS_CONFIG || {};
             const initialNotes = cfg.notes?.initial || [];
 
             if (initialNotes.length > 0) {
                 notesList.innerHTML = '';
-
-                // 倒序插入
                 [...initialNotes].reverse().forEach(note => {
-                    // 【修复点】在这里解析数据结构
-                    // 如果 note 是对象且有 text 字段，说明是新格式 {text: "...", style: "..."}
-                    // 否则可能只是一个简单的字符串
                     let content = note;
                     let style = 'normal';
 
@@ -299,10 +353,8 @@ const OS = (function() {
 
                     addNoteHTML(content, false, style);
                 });
-
                 saveNotes();
             } else {
-                // 默认欢迎语
                 addNoteHTML({
                     cn: "系统：正在初始化笔记模块...",
                     en: "System: Initializing notes module..."
@@ -328,13 +380,11 @@ const OS = (function() {
 
         let htmlContent = "";
         if (typeof contentObj === 'object' && (contentObj.cn || contentObj.en)) {
-            // 构造双语 HTML 结构
             htmlContent = `
                 <span class="lang-cn-only">${contentObj.cn || ""}</span>
                 <span class="lang-en-only">${contentObj.en || ""}</span>
             `;
         } else {
-            // 纯文本 (用户输入)
             htmlContent = contentObj;
         }
 
@@ -358,22 +408,16 @@ const OS = (function() {
             const id = win.getAttribute('data-app');
             windows[id] = win;
 
-            // 点击置顶
             win.addEventListener('mousedown', () => bringToFront(win));
 
-            // 关闭按钮
             const closeBtn = win.querySelector('.close');
             if(closeBtn) closeBtn.addEventListener('click', (e) => { e.stopPropagation(); close(id); });
 
-            // 最小化按钮
             const minBtn = win.querySelector('.min');
             if(minBtn) minBtn.addEventListener('click', (e) => { e.stopPropagation(); minimize(id); });
 
-            // 1. 拖拽移动
             setupDraggable(win);
 
-            // 2. [新增] 动态插入缩放手柄并绑定事件
-            // 这样你就不需要手动去 os.html 里每个窗口加 div 了
             if (!win.querySelector('.resize-handle')) {
                 const handle = document.createElement('div');
                 handle.className = 'resize-handle';
@@ -388,13 +432,12 @@ const OS = (function() {
         let startX, startY, startW, startH;
 
         handle.addEventListener('mousedown', (e) => {
-            e.preventDefault(); // 防止选中文字
+            e.preventDefault();
             isResizing = true;
-            win.classList.add('resizing'); // 激活 CSS 遮罩，防止 iframe 抢事件
+            win.classList.add('resizing');
 
             startX = e.clientX;
             startY = e.clientY;
-            // 获取当前计算后的宽高 (像素值)
             const rect = win.getBoundingClientRect();
             startW = rect.width;
             startH = rect.height;
@@ -404,12 +447,8 @@ const OS = (function() {
 
         document.addEventListener('mousemove', (e) => {
             if (!isResizing) return;
-
-            // 计算新尺寸
             const dx = e.clientX - startX;
             const dy = e.clientY - startY;
-
-            // 直接修改 style 属性
             win.style.width = `${startW + dx}px`;
             win.style.height = `${startH + dy}px`;
         });
@@ -417,7 +456,7 @@ const OS = (function() {
         document.addEventListener('mouseup', () => {
             if (isResizing) {
                 isResizing = false;
-                win.classList.remove('resizing'); // 移除遮罩，恢复 iframe 交互
+                win.classList.remove('resizing');
             }
         });
     }
@@ -460,14 +499,12 @@ const OS = (function() {
         document.addEventListener('mouseup', () => { isDragging = false; win.classList.remove('dragging'); });
     }
 
-    // === 消息通信 ===
     function handleMessage(e) {
         if (!e.data || !e.data.type) return;
         if (e.data.type === 'CLIPBOARD_SYNC') {
             const text = e.data.content;
             if (text && text.length < 500) {
                 const isEn = localStorage.getItem('app_lang') === 'en';
-                // 使用双语系统消息添加到笔记
                 const confirmMsg = isEn
                     ? `[System] Captured text:\n"${text.substring(0,30)}..."\n\nAdd to notes?`
                     : `[系统] 捕获到新文本：\n"${text.substring(0,30)}..."\n\n添加到笔记？`;

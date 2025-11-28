@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 异象中学监控系统</title>
+    <link rel="stylesheet" href="monitor-style.css">
+</head>
+<body>
+
+<div class="login-wrapper">
+    <div class="login-box">
+        <div class="brand" style="text-align: center; border: none; margin-bottom: 2rem;">
+            <div style="font-size: 2rem;">⚠ SECURITY ACCESS</div>
+            <div style="font-size: 1rem; opacity: 0.7;">
+                <span class="lang-cn-only">异象中学内部监控系统</span>
+                <span class="lang-en-only">Anomaly High Surveillance</span>
+            </div>
+        </div>
+
+        <form id="loginForm">
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display:block; margin-bottom:0.5rem; color:var(--cctv-green);">ID:</label>
+                <input type="text" id="username" class="input-box" autocomplete="off" placeholder="please enter you account">
+            </div>
+
+            <div style="margin-bottom: 2rem;">
+                <label style="display:block; margin-bottom:0.5rem; color:var(--cctv-green);">PWD:</label>
+
+                <div style="position: relative;">
+                    <input type="password" id="password" class="input-box" placeholder="******" style="padding-right: 40px;">
+
+                    <button type="button" id="togglePassword" class="eye-btn" title="Toggle Visibility">
+                        <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <button type="submit" class="btn" style="width: 100%;">
+                <span class="lang-cn-only">请求访问</span>
+                <span class="lang-en-only">REQUEST ACCESS</span>
+            </button>
+
+            <div id="msg" style="color: var(--cctv-red); text-align: center; margin-top: 1rem; height: 1.2rem;"></div>
+        </form>
+    </div>
+
+    <div style="margin-top: 2rem;">
+        <select class="lang-selector btn" style="padding: 0.2rem;">
+            <option value="cn">CN - 中文</option>
+            <option value="en">EN - English</option>
+        </select>
+    </div>
+</div>
+
+<script src="../tools/decrypt-lib.js"></script>
+<script src="../tools/lang-switch.js"></script>
+<script src="../tools/config-loader.js"></script>
+
+<script>
+    window.reloadConfig = async function(lang) {
+        try {
+            await UnifiedLoader.load('monitor-config', 'MonitorConfig', 'ENCRYPTED_MONITOR_CONFIG', lang);
+        } catch(e) { console.error(e); }
+    };
+
+    (async function() {
+        const lang = localStorage.getItem('app_lang') || 'cn';
+        await window.reloadConfig(lang);
+
+        // === 新增：密码显隐切换逻辑 (Monitor 风格) ===
+        const passInput = document.getElementById('password');
+        const toggleBtn = document.getElementById('togglePassword');
+
+        // 定义两种图标的路径 (保持简陋的矢量风格)
+        const iconEyeOpen = `
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+        <circle cx="12" cy="12" r="3"></circle>
+    `;
+        // 闭眼/斜杠图标
+        const iconEyeClosed = `
+        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+        <line x1="1" y1="1" x2="23" y2="23"></line>
+    `;
+
+        toggleBtn.addEventListener('click', () => {
+            const svg = toggleBtn.querySelector('svg');
+            if (passInput.type === 'password') {
+                passInput.type = 'text';
+                svg.innerHTML = iconEyeClosed; // 切换为斜杠眼
+                toggleBtn.style.opacity = '1'; // 激活状态常亮
+            } else {
+                passInput.type = 'password';
+                svg.innerHTML = iconEyeOpen; // 切换为正常眼
+                toggleBtn.style.opacity = ''; // 恢复默认透明度
+            }
+        });
+
+
+        document.getElementById('loginForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const u = document.getElementById('username').value.trim();
+            const p = document.getElementById('password').value;
+            const msg = document.getElementById('msg');
+
+            if (!window.MonitorConfig || !window.MonitorConfig.accounts) {
+                msg.textContent = "Loading..."; return;
+            }
+
+            const acc = MonitorConfig.accounts.find(a => a.id === u && a.password === p);
+            if (acc) {
+                sessionStorage.setItem('monitor_user', JSON.stringify(acc));
+                window.location.href = 'monitor-system.html';
+            } else {
+                msg.textContent = lang === 'en' ? "ACCESS DENIED" : "拒绝访问：凭证无效";
+                msg.style.opacity = 0;
+                setTimeout(()=>msg.style.opacity = 1, 100);
+            }
+        });
+    })();
+</script>
+</body>
+</html>
