@@ -104,18 +104,58 @@
                 'ENCRYPTED_SCHOOL_CONFIG',
                 lang
             );
-            // initApp();
         } catch(e) {
             console.error("School Config Failed", e);
         }
     };
 
-    (async function() {
-        // 初始加载
-        const currentLang = localStorage.getItem('app_lang') || 'cn';
-        await window.reloadConfig(currentLang);
+    // ============================================================
+    // 【修复 1】立即绑定事件，移除 async 依赖
+    // ============================================================
+    const loginForm = document.getElementById('loginForm');
+    if (loginForm) {
+        loginForm.addEventListener('submit', function(e) {
+            e.preventDefault(); // 核心：立即阻止默认刷新
 
-        // 密码切换逻辑
+            const user = document.getElementById('username').value.trim();
+            const pass = document.getElementById('password').value;
+            const isEn = localStorage.getItem('app_lang') === 'en';
+
+            // 防御性检查
+            if (!window.SchoolSystemConfig || !window.SchoolSystemConfig.accounts) {
+                // 如果配置还没加载好，手动触发 toast 提示
+                const toast = document.getElementById('toast');
+                toast.textContent = isEn ? "System initializing..." : "系统正在初始化...";
+                toast.className = 'toast show';
+                setTimeout(() => toast.classList.remove('show'), 3000);
+                return;
+            }
+
+            const account = SchoolSystemConfig.accounts.find(acc => acc.id === user && acc.password === pass);
+
+            if(account) {
+                sessionStorage.setItem('schoolSystem_user', account.id);
+                sessionStorage.setItem('schoolSystem_type', account.accountType);
+                window.location.href = 'dashboard.html';
+            } else {
+                // 复用 showToast 逻辑不太方便（因为它在闭包里），这里直接操作 DOM 或者把 showToast 提出来
+                // 为简单起见，这里简单复现 toast 逻辑
+                const toast = document.getElementById('toast');
+                toast.textContent = isEn ? 'Invalid username or password' : '账号或密码不正确，请重试';
+                toast.className = 'toast show error';
+                setTimeout(() => toast.classList.remove('show'), 3000);
+            }
+        });
+    }
+
+    (async function() {
+        // 【修复 2】防止竞态：如果 lang-switch 已经加载了配置，这里跳过
+        if (!window.SchoolSystemConfig) {
+            const currentLang = localStorage.getItem('app_lang') || 'cn';
+            await window.reloadConfig(currentLang);
+        }
+
+        // 密码切换逻辑 (UI 逻辑放在这里没问题)
         const passwordInput = document.getElementById('password');
         const toggleBtn = document.getElementById('togglePassword');
         const eyeIcon = document.getElementById('eyeIcon');
@@ -133,32 +173,6 @@
                 }
             });
         }
-
-        function showToast(msg, isError = false) {
-            const toast = document.getElementById('toast');
-            toast.textContent = msg;
-            toast.className = `toast show ${isError ? 'error' : ''}`;
-            setTimeout(() => toast.classList.remove('show'), 3000);
-        }
-
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const user = document.getElementById('username').value.trim();
-            const pass = document.getElementById('password').value;
-
-            if (!window.SchoolSystemConfig) return;
-
-            const account = SchoolSystemConfig.accounts.find(acc => acc.id === user && acc.password === pass);
-
-            if(account) {
-                sessionStorage.setItem('schoolSystem_user', account.id);
-                sessionStorage.setItem('schoolSystem_type', account.accountType);
-                window.location.href = 'dashboard.html';
-            } else {
-                const isEn = localStorage.getItem('app_lang') === 'en';
-                showToast(isEn ? 'Invalid username or password' : '账号或密码不正确，请重试', true);
-            }
-        });
     })();
 </script>
 </body>

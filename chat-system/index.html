@@ -107,8 +107,6 @@
    */
   window.reloadConfig = async function(lang) {
     try {
-      // 使用通用加载器智能加载
-      // Chat 的配置文件名是 'config' (对应 config.js / config.encrypted.js)
       await UnifiedLoader.load(
               'config',               // baseName
               'ChatConfig',           // globalVar
@@ -120,41 +118,23 @@
     }
   };
 
-  // 初始化与交互逻辑
-  (async function() {
-    // 1. 启动时加载配置
-    const currentLang = localStorage.getItem('app_lang') || 'cn';
-    await window.reloadConfig(currentLang);
+  // ============================================================
+  // 【修复 1】立即绑定事件，移除 async 依赖
+  // ============================================================
+  const loginForm = document.getElementById('loginForm');
+  if (loginForm) {
+    loginForm.addEventListener('submit', function(e) {
+      e.preventDefault(); // 核心：立即阻止默认刷新行为
 
-    // 2. 密码显示/隐藏切换 (保持原样)
-    const passwordInput = document.getElementById('password');
-    const toggleBtn = document.getElementById('togglePassword');
-    const eyeIcon = document.getElementById('eyeIcon');
-
-    if (toggleBtn) {
-      toggleBtn.addEventListener('click', function() {
-        if (passwordInput.type === 'password') {
-          passwordInput.type = 'text';
-          eyeIcon.innerHTML = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>`;
-          toggleBtn.style.color = '#7c3aed';
-        } else {
-          passwordInput.type = 'password';
-          eyeIcon.innerHTML = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>`;
-          toggleBtn.style.color = 'var(--text-muted)';
-        }
-      });
-    }
-
-    // 3. 登录表单提交逻辑
-    document.getElementById('loginForm').addEventListener('submit', function(e) {
-      e.preventDefault();
       const user = document.getElementById('username').value.trim();
       const pass = document.getElementById('password').value;
       const err = document.getElementById('errorMsg');
 
-      // 安全检查：确保配置已加载
+      // 防御性检查：确保配置已加载
       if (!window.ChatConfig || !window.ChatConfig.accounts) {
-        alert("System initializing... please wait."); // 防止用户手速过快
+        // 根据当前语言提示
+        const isEn = localStorage.getItem('app_lang') === 'en';
+        alert(isEn ? "System initializing... please wait." : "系统正在初始化，请稍候...");
         return;
       }
 
@@ -174,10 +154,39 @@
         window.location.href = 'chat.html';
       } else {
         err.style.display = 'block';
-        // 3秒后自动隐藏错误提示
         setTimeout(() => err.style.display = 'none', 3000);
       }
     });
+  }
+
+  // ============================================================
+  // 初始化逻辑
+  // ============================================================
+  (async function() {
+    // 【修复 2】避免竞态：如果配置已被 lang-switch 加载，则跳过
+    if (!window.ChatConfig) {
+      const currentLang = localStorage.getItem('app_lang') || 'cn';
+      await window.reloadConfig(currentLang);
+    }
+
+    // 2. 密码显示/隐藏切换 (UI 逻辑放在这里没问题)
+    const passwordInput = document.getElementById('password');
+    const toggleBtn = document.getElementById('togglePassword');
+    const eyeIcon = document.getElementById('eyeIcon');
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', function() {
+        if (passwordInput.type === 'password') {
+          passwordInput.type = 'text';
+          eyeIcon.innerHTML = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>`;
+          toggleBtn.style.color = '#7c3aed';
+        } else {
+          passwordInput.type = 'password';
+          eyeIcon.innerHTML = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>`;
+          toggleBtn.style.color = 'var(--text-muted)';
+        }
+      });
+    }
   })();
 </script>
 </body>

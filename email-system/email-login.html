@@ -174,6 +174,7 @@
       document.body.appendChild(script);
     });
   }
+
   /**
    * 动态加载配置脚本
    * 当用户切换语言时，lang-switch.js 会调用此函数
@@ -191,11 +192,46 @@
     }
   };
 
+  /**
+   * 关键修复：将事件绑定移出异步流程，防止因配置加载阻塞导致点击登录刷新页面
+   */
+  document.getElementById('loginForm').addEventListener('submit', function(e) {
+    e.preventDefault(); // 1. 立即阻止默认行为
+
+    const email = document.getElementById('email').value.trim();
+    const pass = document.getElementById('password').value;
+    const isEn = localStorage.getItem('app_lang') === 'en';
+
+    // 2. 防御性检查：确保配置已加载
+    if (!window.EmailSystemConfig || !window.EmailSystemConfig.accounts) {
+      alert(isEn ? "System initializing... please wait." : "系统正在初始化，请稍候...");
+      return;
+    }
+
+    const account = EmailSystemConfig.accounts.find(acc => acc.id === email && acc.password === pass);
+
+    if (account) {
+      sessionStorage.setItem('emailSystem_user', account.id);
+      sessionStorage.setItem('emailSystem_name', account.displayName);
+      window.location.href = 'email-system.html';
+    } else {
+      const err = document.getElementById('errorMessage');
+      err.style.display = 'block';
+      setTimeout(() => err.style.display = 'none', 3000);
+    }
+  });
+
+  // 其他初始化逻辑
   (async function() {
     // 1. 初始化逻辑
-    // lang-switch.js 已经运行并设置了 body class，这里负责加载对应语言的数据
     const currentLang = localStorage.getItem('app_lang') || 'cn';
-    await window.reloadConfig(currentLang);
+
+    // 关键优化：检查配置是否已经由 lang-switch.js 加载
+    // 防止重复请求和竞态条件
+    if (!window.EmailSystemConfig) {
+      console.log("[Login] Triggering initial config load...");
+      await window.reloadConfig(currentLang);
+    }
 
     // 2. 密码显示/隐藏切换
     const passwordInput = document.getElementById('password');
@@ -220,34 +256,8 @@
       }
     });
 
-    // 3. 登录逻辑
-    document.getElementById('loginForm').addEventListener('submit', function(e) {
-      e.preventDefault();
-      const email = document.getElementById('email').value.trim();
-      const pass = document.getElementById('password').value;
-
-      // 防御性检查
-      if (!window.EmailSystemConfig || !window.EmailSystemConfig.accounts) {
-        alert("System initializing... please wait.");
-        return;
-      }
-
-      const account = EmailSystemConfig.accounts.find(acc => acc.id === email && acc.password === pass);
-
-      if (account) {
-        sessionStorage.setItem('emailSystem_user', account.id);
-        // 注意：由于配置已分离，displayName 现在是直接的字符串，无需 getLocalizedText
-        sessionStorage.setItem('emailSystem_name', account.displayName);
-        window.location.href = 'email-system.html';
-      } else {
-        const err = document.getElementById('errorMessage');
-        err.style.display = 'block';
-        setTimeout(() => err.style.display = 'none', 3000);
-      }
-    });
-
     // ==========================================
-    // 4. 找回密码逻辑 (更新版)
+    // 4. 找回密码逻辑
     // ==========================================
     const modal = document.getElementById('forgotModal');
     let currentRecoveryAccount = null;
@@ -277,7 +287,10 @@
       const errorDiv = document.getElementById('errorStep1');
       const isEn = localStorage.getItem('app_lang') === 'en';
 
-      if (!window.EmailSystemConfig) return;
+      if (!window.EmailSystemConfig) {
+        alert(isEn ? "System initializing..." : "系统正在初始化...");
+        return;
+      }
 
       currentRecoveryAccount = EmailSystemConfig.accounts.find(acc => acc.studentId === inputId);
 
@@ -285,7 +298,6 @@
               currentRecoveryAccount.enableRecovery &&
               currentRecoveryAccount.securityQuestion) {
 
-        // 直接读取 securityQuestion，因为加载的配置已经是单语言版本
         document.getElementById('questionText').textContent = currentRecoveryAccount.securityQuestion;
 
         document.getElementById('verifyAnswer').value = '';
@@ -306,7 +318,6 @@
     document.getElementById('btnVerifyAns').onclick = () => {
       const inputAns = document.getElementById('verifyAnswer').value.trim();
 
-      // 直接比对 securityAnswer，无需处理对象
       if (currentRecoveryAccount && inputAns === currentRecoveryAccount.securityAnswer) {
         document.getElementById('showPassword').textContent = currentRecoveryAccount.password;
         switchStep(3);

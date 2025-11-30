@@ -164,8 +164,14 @@
 
   // 核心初始化逻辑
   (async function() {
-    const currentLang = localStorage.getItem('app_lang') || 'cn';
-    await window.reloadConfig(currentLang);
+    // 【修复】防止竞态条件 (如果 lang-switch 已经加载了配置，这里就不再重复加载)
+    if (!window.ChatConfig) {
+      const currentLang = localStorage.getItem('app_lang') || 'cn';
+      await window.reloadConfig(currentLang);
+    } else {
+      // 如果已经加载了，直接初始化 UI
+      initApp();
+    }
   })();
 
   // 应用初始化

@@ -573,7 +573,26 @@
 
     (async function(){
         const lang = localStorage.getItem('app_lang') || 'cn';
-        await window.reloadConfig(lang);
+
+        // 【修复】防止竞态与双重加载
+        if (!window.MonitorConfig) {
+            // 如果配置未加载，手动加载
+            await window.reloadConfig(lang);
+        } else {
+            // 如果配置已存在，直接初始化系统
+            // 注意：MonitorGenerator 可能已经被 reloadConfig 运行过了，
+            // 但为了保险起见，可以在 initSystem 开头或者这里再检查一次 generator 状态
+            // 由于 reloadConfig 内部包含了 Generator.run 和 initSystem，
+            // 这里我们手动模拟这个过程：
+
+            // 确保生成器运行过（如果 MonitorConfig 是纯静态数据，这里需要再次 hydrate）
+            // 通常 reloadConfig 负责了 hydrate，所以如果 !MonitorConfig，reloadConfig 会做完一切。
+            // 但如果 MonitorConfig 已经存在（被 lang-switch 加载），lang-switch 调用的也是 reloadConfig。
+            // 所以理论上只要 MonitorConfig 存在，initSystem 就可以直接跑。
+
+            // 简单起见，直接调用初始化：
+            initSystem();
+        }
     })();
 </script>
 </body>

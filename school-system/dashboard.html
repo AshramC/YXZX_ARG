@@ -393,11 +393,16 @@
     // 3. 启动逻辑
     // ============================================================
     (async function() {
-        // 获取当前语言设置
         const currentLang = localStorage.getItem('app_lang') || 'cn';
 
-        // 首次加载配置 (lang-switch.js 已处理 DOM 显隐，这里处理数据加载)
-        await window.reloadConfig(currentLang);
+        // 【修复】防止竞态：仅当配置不存在时才主动加载
+        // lang-switch.js 可能会自动触发 reloadConfig
+        if (!window.SchoolSystemConfig) {
+            await window.reloadConfig(currentLang);
+        } else {
+            // 如果配置已存在（例如从其他页面带过来，或 lang-switch 极速加载了），直接初始化 UI
+            initApp();
+        }
 
         // 绑定退出按钮
         document.getElementById('logoutBtn').addEventListener('click', () => {
