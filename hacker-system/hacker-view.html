@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ANOMALY: LIBRARY INFILTRATION</title>
+    <link rel="stylesheet" href="hacker-style.css">
+</head>
+<body class="lang-cn">
+
+<audio id="bgmAudio" src="../bgm/hacker.mp3" loop preload="auto"></audio>
+
+<div class="monitor-wrapper">
+    <div class="overlay-scanline"></div>
+    <div class="overlay-vignette"></div>
+    <div id="glitchLayer" class="glitch-overlay"></div>
+
+    <!-- 信号中断过渡层 -->
+    <div id="signalLostLayer" class="signal-lost-layer hidden">
+        <div class="static-noise"></div>
+        <div class="signal-text">
+            <div class="signal-icon">◉</div>
+            <div class="signal-msg">NO SIGNAL</div>
+            <div class="signal-code">ERR_CONNECTION_TERMINATED</div>
+        </div>
+        <div class="signal-bars">
+            <span></span><span></span><span></span><span></span><span></span>
+        </div>
+    </div>
+
+    <div class="monitor-header">
+        <span>
+            <span class="lang-en-only">CAM_04: LIBRARY_ARCHIVE</span>
+            <span class="lang-cn-only">实时监控源: 图书馆</span>
+        </span>
+
+        <div class="hacker-lang-switch" onclick="toggleLanguage()">
+            [ <span id="btn-cn">CN</span> / <span id="btn-en">EN</span> ]
+        </div>
+
+        <!-- 调试按钮：上线时注释掉即可 -->
+        <div class="debug-controls">
+            <button onclick="window.gameEngine?.skipLevel()">[SKIP]</button>
+        </div>
+
+        <!-- 玩家用：跳过游戏按钮 -->
+        <div class="skip-game-btn" onclick="window.gameEngine?.showSkipConfirm()">
+            <span class="skip-icon">⏭</span>
+            <span class="skip-text">
+                <span class="lang-cn-only">跳过游戏</span>
+                <span class="lang-en-only">SKIP GAME</span>
+            </span>
+        </div>
+
+        <span id="clock" style="float: right">REC 00:00:00</span>
+    </div>
+
+    <div id="mapContainer" class="map-container">
+        <svg id="svgLayer"></svg>
+        <div id="entityLayer">
+            <div id="thoughtBubble" class="thought-bubble hidden">
+                <div id="thoughtText" class="thought-content"></div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <div id="modalOverlay" class="modal-overlay hidden">
+        <div class="modal-box">
+            <h2 id="modalTitle" class="glitch-text">SYSTEM ACCESS GRANTED</h2>
+            <div id="modalMsg"></div>
+        </div>
+    </div>
+</div>
+
+<div class="phone-terminal">
+    <div class="phone-header">
+        <span class="signal">📶 5G</span>
+            <span class="contact-name">
+                 <span class="lang-en-only">ANONYMOUS</span>
+                <span class="lang-cn-only">匿名黑客</span>
+            </span>
+        <span class="battery">🔋 84%</span>
+    </div>
+
+    <div id="chatHistory" class="chat-history">
+        <div class="msg system">
+            <span class="lang-en-only">Establishing secure connection...</span>
+            <span class="lang-cn-only">正在建立加密连接...</span>
+        </div>
+    </div>
+
+    <div class="phone-controls">
+        <div id="inventoryBar" class="inventory-bar">
+            <span class="inv-label">
+                <span class="lang-en-only">KEYCHAIN:</span>
+                <span class="lang-cn-only">密钥库:</span>
+            </span>
+            <div id="inventoryList"></div>
+        </div>
+
+        <div id="actionArea" class="action-grid">
+            <button class="btn-opt" disabled>
+                <span class="lang-en-only">Synchronizing...</span>
+                <span class="lang-cn-only">正在同步数据...</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="deathScreen" class="death-screen hidden">
+    <!-- 结局背景图片 -->
+    <div class="death-bg-image"></div>
+    <div class="death-bg-overlay"></div>
+    
+    <!-- 结局标题 -->
+    <div class="death-title">
+        <span class="lang-cn-only">Bad End : 开除结局</span>
+        <span class="lang-en-only">Bad End : Expelled</span>
+    </div>
+    
+    <div class="death-console">
+        <div id="deathTextContainer"></div>
+        <div id="deathCursor" class="blinking-cursor">_</div>
+    </div>
+
+    <!-- 跳过按钮 -->
+    <button id="skipButton" class="btn-skip hidden">
+        <span class="lang-en-only">SKIP ▶▶</span>
+        <span class="lang-cn-only">跳过 ▶▶</span>
+    </button>
+
+    <div id="deathControls" class="death-controls hidden">
+        <div id="retryPrompt" class="retry-prompt"></div>
+
+        <button id="retryButton" class="btn-retry glitch-hover" onclick="location.reload()">
+        </button>
+    </div>
+</div>
+<!-- ============================================================ -->
+<!-- 脚本加载顺序很重要！ -->
+<!-- ============================================================ -->
+
+<!-- 1. 工具库 (如果需要加密功能) -->
+<script src="../tools/decrypt-lib.js"></script>
+<script src="../tools/config-loader.js"></script>
+
+<!-- 2. 存档管理器 (必须在引擎之前加载) -->
+<script src="save-manager.js"></script>
+
+<script src="minigame-manager.js"></script>
+<!-- 3. 游戏引擎 (最后加载，确保配置已就绪) -->
+<script src="hacker-engine.js"></script>
+
+<script>
+    // ============================================================
+    // 配置加载与语言切换
+    // ============================================================
+
+    // 配置重载函数
+    async function reloadAllConfigs(lang) {
+        try {
+            // 加载关卡配置
+            await UnifiedLoader.load(
+                'level1-config',
+                'LevelConfig',
+                'ENCRYPTED_LEVEL_CONFIG',
+                lang
+            );
+
+            // 加载 Hacker 文本配置
+            await UnifiedLoader.load(
+                'hacker-config',
+                'HackerConfig',
+                'ENCRYPTED_HACKER_CONFIG',
+                lang
+            );
+
+            console.log(`[Lang] Configs loaded for [${lang}]`);
+        } catch(e) {
+            console.error("Config load failed:", e);
+        }
+    }
+
+    // 语言初始化
+    async function initLanguage() {
+        const lang = localStorage.getItem('app_lang') || 'cn';
+        await setLanguage(lang, true); // true = 首次加载
+    }
+
+    // 语言切换
+    function toggleLanguage() {
+        const currentLang = document.body.classList.contains('lang-en') ? 'cn' : 'en';
+        setLanguage(currentLang, false);
+    }
+
+    // 设置语言
+    async function setLanguage(lang, isInit = false) {
+        // 1. 设置 Body 类 (控制 HTML 中的 lang-cn-only / lang-en-only)
+        document.body.classList.remove('lang-cn', 'lang-en');
+        document.body.classList.add('lang-' + lang);
+
+        // 2. 存入本地存储
+        localStorage.setItem('app_lang', lang);
+
+        // 3. 更新按钮高亮状态
+        document.getElementById('btn-cn').classList.toggle('active', lang === 'cn');
+        document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+
+        // 4. 重载配置文件
+        await reloadAllConfigs(lang);
+
+        // 5. 通知游戏引擎刷新 UI
+        if (window.gameEngine && !isInit) {
+            window.gameEngine.refreshUiText(lang);
+        }
+    }
+
+    // ============================================================
+    // 启动流程
+    // ============================================================
+    (async function() {
+        try {
+            // 1. 先等待配置和语言加载完成
+            await initLanguage();
+            console.log("Config loaded, starting engine...");
+
+            // 2. 配置就绪后，手动启动引擎
+            // 此时 hacker-engine.js 已经加载(因为它在body底部)，GameEngine 类已可用
+            if (typeof GameEngine !== 'undefined') {
+                new GameEngine();
+            } else {
+                console.error("GameEngine class not found!");
+            }
+        } catch (e) {
+            console.error("Critical Error during startup:", e);
+        }
+    })();
+</script>
+
+<div id="finalLockScreen" class="lock-screen hidden">
+    <div class="lock-container">
+        <div class="lock-header">
+            <span class="lang-en-only">⚠ CONNECTION TERMINATED BY HOST ⚠</span>
+            <span class="lang-cn-only">⚠ 远程主机强制断开连接 ⚠</span>
+        </div>
+        <div class="lock-body">
+            <div class="lock-status">
+                <span>
+                    <span class="lang-en-only">PROTOCOL:</span>
+                    <span class="lang-cn-only">执行协议:</span>
+                </span>
+                <span style="color:#ef4444">SILENT_NIGHT (静默)</span><br>
+
+                <span>
+                    <span class="lang-en-only">STATUS:</span>
+                    <span class="lang-cn-only">当前状态:</span>
+                </span>
+                <span style="color:#ef4444">
+                    <span class="lang-en-only">LOCKED</span>
+                    <span class="lang-cn-only">已锁定</span>
+                </span><br>
+
+                <span>
+                    <span class="lang-en-only">ENCRYPTION:</span>
+                    <span class="lang-cn-only">加密层级:</span>
+                </span>
+                <span>AES-4096 (Running...)</span>
+            </div>
+
+            <div class="lock-timer-box">
+                <div class="lock-label">
+                    <span class="lang-en-only">NEXT SAFE WINDOW</span>
+                    <span class="lang-cn-only">下一次安全连接窗口</span>
+                </div>
+                <div class="lock-date">2025 . 12 . 12</div>
+                <div class="lock-sub">
+                    <span class="lang-en-only">WAITING FOR HANDSHAKE...</span>
+                    <span class="lang-cn-only">等待握手信号...</span>
+                </div>
+            </div>
+
+            <div class="lock-console">
+                > Upload complete: ANOMALY_CORE.dat (100%)<br>
+                > Verifying hash... OK.<br>
+                > <span class="lang-en-only">Remote user [Z.Chen] initiated disconnect.</span><span class="lang-cn-only">远程用户 [张晨] 发起断开请求.</span><br>
+                > <span class="lang-en-only">Closing ports... CLOSED.</span><span class="lang-cn-only">正在关闭端口... 已关闭.</span><br>
+                > System going to standby.<br>
+                <span class="blinking-cursor">_</span>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- 跳过游戏确认弹窗 -->
+<div id="skipConfirmModal" class="skip-confirm-overlay hidden">
+    <div class="skip-confirm-box">
+        <div class="skip-confirm-icon">⚠️</div>
+        <h3 class="skip-confirm-title">
+            <span class="lang-cn-only">确认跳过？</span>
+            <span class="lang-en-only">Skip this level?</span>
+        </h3>
+        <p class="skip-confirm-msg">
+            <span class="lang-cn-only">跳过后将直接进入下一阶段的剧情。<br>你将错过本关的潜入体验。</span>
+            <span class="lang-en-only">You will skip directly to the next story phase.<br>You will miss the infiltration gameplay of this level.</span>
+        </p>
+        <div class="skip-confirm-buttons">
+            <button class="btn-confirm-cancel" onclick="window.gameEngine?.hideSkipConfirm()">
+                <span class="lang-cn-only">继续游戏</span>
+                <span class="lang-en-only">Continue Playing</span>
+            </button>
+            <button class="btn-confirm-skip" onclick="window.gameEngine?.confirmSkipToMiniGame()">
+                <span class="lang-cn-only">确认跳过</span>
+                <span class="lang-en-only">Confirm Skip</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

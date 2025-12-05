@@ -1,0 +1,852 @@
+:root {
+    --bg-color: #050505;
+    --term-bg: rgba(20, 20, 20, 0.9);
+    --term-border: #333;
+    --hacker-green: #00ff41;
+    --safe-blue: #3b82f6;
+    --danger-red: #ef4444;
+    --font-mono: 'Consolas', 'Courier New', monospace;
+    --font-ui: 'Segoe UI', sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg-color); height: 100vh; overflow: hidden; font-family: var(--font-mono); color: white; }
+
+/* =========================================
+   1. 监控视口与环境特效 (Monitor & FX)
+   ========================================= */
+.monitor-wrapper {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background-image: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+    background-size: 100% 2px, 3px 100%;
+    z-index: 1;
+    transition: filter 0.2s;
+    cursor: grab;
+}
+.monitor-wrapper:active { cursor: grabbing; }
+
+.monitor-wrapper.shaking {
+    animation: shakeScreen 0.2s infinite;
+    filter: hue-rotate(90deg) contrast(1.5);
+}
+
+.overlay-scanline {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1));
+    background-size: 100% 4px; pointer-events: none; z-index: 10;
+}
+
+.glitch-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 20;
+    opacity: 0;
+    background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIj48ZmlsdGVyIGlkPSJnoiPjxmZVR1cmJ1bGVuY2UgdHlwZT0iZnJhY3RhbE5vaXNlIiBiYXNlRnJlcXVlbmN5PSIwLjY1IiBudW1PY3RhdmVzPSIzIiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsdGVyPSJ1cmwoI2cpIiBvcGFjaXR5PSIwLjUiLz48L3N2Zz4=');
+    mix-blend-mode: overlay;
+    animation: noiseShift 0.2s steps(3) infinite;
+}
+
+.monitor-header {
+    position: absolute; top: 20px; left: 20px; right: 20px;
+    color: var(--hacker-green); font-size: 14px; letter-spacing: 2px;
+    text-shadow: 0 0 5px var(--hacker-green); z-index: 5;
+    pointer-events: none;
+}
+
+/* 调试按钮 */
+.debug-controls {
+    position: absolute; top: 20px; right: 150px;
+    pointer-events: auto; z-index: 100;
+}
+.debug-controls button {
+    background: rgba(239, 68, 68, 0.3); border: 1px solid #ef4444;
+    color: #ef4444; font-family: var(--font-mono); font-size: 10px;
+    padding: 2px 8px; cursor: pointer; opacity: 0.5;
+    transition: opacity 0.2s;
+}
+.debug-controls button:hover { opacity: 1; }
+
+/* =========================================
+   2. 地图容器与相机 (Map & Camera)
+   ========================================= */
+.map-container {
+    position: absolute;
+    top: 0; left: 0;
+    transform-origin: 0 0;
+    width: 1000px; height: 600px;
+    border: 1px solid #333; background: #0a0a0a;
+    box-shadow: 0 0 50px rgba(0,0,0,0.5);
+    overflow: visible !important; /* 允许迷雾溢出 */
+    transition: transform 0.1s linear;
+}
+
+/* =========================================
+   3. 实体层 (SVG & Entities)
+   ========================================= */
+#svgLayer { width: 100%; height: 100%; position: absolute; top:0; left:0; pointer-events: none; z-index: 2; }
+#entityLayer { z-index: 5; }
+
+/* --- 连线 --- */
+.link-line { stroke-width: 2px; fill: none; transition: all 0.5s ease; }
+.link-hidden { stroke: var(--safe-blue); stroke-dasharray: 6, 4; opacity: 0.6; }
+.link-open { stroke: #fff; opacity: 0.3; }
+.link-line.active {
+    stroke: #fff !important; stroke-width: 4px !important; stroke-dasharray: none !important;
+    opacity: 1 !important; filter: drop-shadow(0 0 5px #fff); z-index: 99;
+}
+
+/* --- 区域与障碍 --- */
+.zone {
+    position: absolute; background: #1a1a1a; border: 1px solid #333; z-index: 1;
+    transition: opacity 0.5s ease;
+}
+.obstacle {
+    position: absolute; z-index: 3; border: 1px solid #444;
+    background: repeating-linear-gradient(45deg, #111, #111 10px, #222 10px, #222 20px);
+    box-shadow: 2px 2px 10px rgba(0,0,0,0.8);
+    transition: opacity 0.5s ease;
+}
+
+/* --- 节点 --- */
+.node {
+    position: absolute; width: 8px; height: 8px; background: #444; border-radius: 50%;
+    transform: translate(-50%, -50%); z-index: 4;
+    transition: opacity 0.5s ease;
+}
+.node.target { border: 2px solid var(--hacker-green); }
+
+/* 节点类型样式 */
+.node[data-node-type="hide"] {
+    border-color: #10b981 !important; /* 绿色边框，代表安全 */
+    box-shadow: 0 0 8px #10b981;
+    background-color: rgba(16, 185, 129, 0.2);
+}
+
+.node[data-node-type="hide"]::after {
+    content: "🛡️"; /* 或其他表示盾牌/掩体的图标 */
+    position: absolute;
+    top: -15px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    opacity: 0.8;
+}
+
+.node[data-node-type="hack"] { border-color: #f59e0b; box-shadow: 0 0 15px #f59e0b; }
+.node[data-node-type="exit"] {
+    border: 2px dashed #00ff41; background: rgba(0, 255, 65, 0.2); width: 16px; height: 16px;
+    animation: spin 4s linear infinite;
+}
+
+/* 道具高亮节点 */
+.node.has-loot { border-color: #ffffff; box-shadow: 0 0 15px #ffffff; z-index: 50; }
+.node.has-loot::after {
+    content: ""; position: absolute; width: 6px; height: 6px; background: #ffffff; border-radius: 50%;
+    top: 50%; left: 50%; transform: translate(-50%, -50%); animation: lootPulse 1.5s infinite;
+}
+.node.has-loot.looted { border-color: #555; box-shadow: none; }
+.node.has-loot.looted::after { display: none; }
+
+/* 目标节点高亮 */
+.node.active {
+    border-color: #fff !important; background-color: #333;
+    box-shadow: 0 0 15px #fff, inset 0 0 10px #fff;
+    transform: translate(-50%, -50%) scale(1.3) !important; z-index: 100 !important;
+}
+.node.active::before {
+    content: "▼"; position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
+    color: #fff; font-size: 12px; animation: bounce 0.5s infinite alternate;
+}
+
+/* --- 角色 (Player & Guard) --- */
+.player-dot {
+    position: absolute; width: 12px; height: 12px;
+    background: var(--hacker-green); border-radius: 50%;
+    transform: translate(-50%, -50%); z-index: 100;
+    box-shadow: 0 0 10px var(--hacker-green);
+    /* 注意：不要加 transition，由 JS 控制或 executeMove 的 CSS 决定 */
+}
+.player-dot.sneaking { opacity: 0.5; box-shadow: none; background: var(--safe-blue); }
+
+.guard-dot {
+    transition: left 0.1s linear, top 0.1s linear, opacity 0.3s, transform 0.3s;
+}
+
+/* =========================================
+   4. 视觉反馈 (Fog, Noise, Alerts)
+   ========================================= */
+/* 战争迷雾 */
+.zone.fog-dim, .obstacle.fog-dim, .node.fog-dim, .link-line.fog-dim {
+    opacity: 0.5 !important; filter: grayscale(80%) brightness(0.7);
+}
+.node.has-loot.fog-dim { opacity: 0.9 !important; filter: none !important; } /* 道具在迷雾中保持高亮 */
+.guard-dot.fog-hidden { opacity: 0 !important; transform: translate(-50%, -50%) scale(0); pointer-events: none; }
+
+/* 噪音预览圈 */
+.noise-preview {
+    position: absolute; transform: translate(-50%, -50%); border-radius: 50%; z-index: 4; pointer-events: none;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    animation: borderBreathe 2s ease-in-out infinite alternate;
+}
+.noise-preview::after {
+    content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.6);
+    animation: simpleRipple 2s infinite cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* 守卫状态 */
+.guard-dot.warning {
+    background: #fbbf24 !important; box-shadow: 0 0 15px #fbbf24 !important;
+    transform: translate(-50%, -50%) scale(1.2);
+}
+.guard-dot.warning::after { content: "?"; color: black; font-weight: bold; }
+
+.guard-dot.alerted {
+    background: #ef4444 !important; box-shadow: 0 0 25px #ef4444 !important;
+    z-index: 999;
+}
+.guard-dot.alerted::after {
+    content: "!"; color: white; font-weight: bold; font-size: 16px;
+    animation: shake 0.2s infinite;
+}
+
+/* =========================================
+   5. 思维气泡 (Thought Bubble)
+   ========================================= */
+/* 正常气泡 */
+.thought-bubble {
+    position: absolute; transform: translate(-50%, -100%);
+    max-width: 200px; padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.9); border: 1px solid #444; border-left: 2px solid var(--hacker-green);
+    color: #ccc; font-size: 12px; font-family: var(--font-mono); line-height: 1.4; text-shadow: 0 1px 2px black;
+    z-index: 150; pointer-events: none;
+    opacity: 0; margin-top: -15px;
+    transition: opacity 0.4s ease, margin-top 0.4s ease;
+}
+.thought-bubble.visible { opacity: 1; margin-top: -25px; }
+.thought-bubble::after {
+    content: ""; position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
+    width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 6px solid #444;
+}
+.thought-content { white-space: normal; }
+
+/* 恐慌模式气泡 (Panic Mode) - 强制高优先级 */
+#entityLayer .thought-bubble.panic {
+    display: block !important; opacity: 1 !important; visibility: visible !important;
+    position: absolute; transform: translate(-50%, -100%);
+    width: 260px; height: auto !important; min-height: 60px; margin-top: -30px;
+
+    /* 强制红色样式 */
+    background: rgba(10, 0, 0, 0.95) !important;
+    border: 3px solid #ef4444 !important;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+
+    z-index: 9999; pointer-events: none;
+    animation: panicShake 0.05s infinite;
+}
+#entityLayer .thought-bubble.panic::after { display: none !important; }
+#entityLayer .thought-bubble.panic .thought-content {
+    display: flex; flex-direction: column-reverse; /* 文字从底向上 */
+    overflow: visible !important; white-space: nowrap;
+    font-weight: bold; font-size: 13px; line-height: 1.2; text-shadow: 1px 1px 0 #000;
+}
+.panic-line {
+    color: #ef4444 !important; /* 强制红字 */
+    animation: textGlitch 0.1s infinite; margin-top: 2px;
+}
+.panic-error { color: #fff !important; background: #ef4444; padding: 0 4px; }
+
+
+/* =========================================
+   6. 手机终端 UI (Phone)
+   ========================================= */
+.phone-terminal {
+    position: absolute; bottom: 30px; right: 30px;
+    width: 320px; height: 500px;
+    background: var(--term-bg); border: 1px solid var(--term-border); border-radius: 12px;
+    backdrop-filter: blur(10px); display: flex; flex-direction: column;
+    z-index: 100; box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+    font-family: var(--font-ui); overflow: hidden;
+}
+.phone-header { padding: 15px; border-bottom: 1px solid #333; font-size: 12px; color: #888; display: flex; justify-content: space-between; }
+.chat-history { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.chat-history::-webkit-scrollbar { width: 4px; }
+.chat-history::-webkit-scrollbar-thumb { background: #333; }
+
+.msg { padding: 8px 12px; border-radius: 8px; font-size: 13px; line-height: 1.4; max-width: 90%; animation: fadeIn 0.3s ease; }
+.msg.npc { background: #2a2a2a; color: #eee; align-self: flex-start; border-bottom-left-radius: 2px; }
+.msg.system { color: var(--hacker-green); font-size: 11px; text-align: center; align-self: center; margin: 10px 0; }
+.msg.alert { color: var(--danger-red); font-weight: bold; }
+.msg.typing::after {
+    content: "▋"; display: inline-block; vertical-align: bottom;
+    animation: blink 1s step-end infinite; color: var(--hacker-green); margin-left: 2px;
+}
+
+.phone-controls { background: rgba(0,0,0,0.3); border-top: 1px solid #333; padding: 10px; }
+.inventory-bar { font-size: 10px; color: #666; margin-bottom: 10px; display: flex; align-items: center; gap: 5px; }
+.key-icon { color: var(--hacker-green); border: 1px solid var(--hacker-green); padding: 1px 4px; border-radius: 2px; }
+
+.action-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.btn-opt {
+    background: #eee; color: #000; border: none; padding: 12px; border-radius: 6px;
+    cursor: pointer; font-weight: 600; font-size: 13px; transition: 0.2s;
+    text-align: left; display: flex; justify-content: space-between; align-items: center;
+}
+.btn-opt:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(255,255,255,0.1); }
+.btn-opt:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(1); }
+.btn-sneak { background: #1e3a8a; color: #93c5fd; border: 1px dashed #3b82f6; } .btn-sneak:hover { background: #172554; }
+.btn-run { background: #fff; color: #000; } .btn-run:hover { background: #f3f4f6; }
+.btn-locked { background: #333; color: #777; border: 1px solid #444; }
+.btn-icon { font-size: 14px; margin-right: 6px; }
+.btn-cost { font-size: 10px; opacity: 0.6; font-family: monospace; }
+
+/* =========================================
+   7. 游戏结束与结算 (Game Over & Win)
+   ========================================= */
+.hidden { display: none !important; }
+
+/* 胜利弹窗 */
+.modal-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.9); z-index: 999;
+    display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px);
+}
+.modal-box {
+    border: 2px solid var(--danger-red); background: #111; padding: 40px; text-align: center;
+    box-shadow: 0 0 50px var(--danger-red); animation: glitchEntry 0.2s steps(5); max-width: 400px;
+}
+.modal-box h1 { font-size: 24px; color: var(--danger-red); margin-bottom: 10px; letter-spacing: 4px; }
+.modal-overlay.win .modal-box { border-color: var(--hacker-green); box-shadow: 0 0 50px var(--hacker-green); }
+.modal-overlay.win h1 { color: var(--hacker-green); }
+
+/* 死亡黑屏 */
+.death-screen {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: #050505; z-index: 2000;
+    display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
+    padding: 2rem; padding-bottom: 15vh;
+    font-family: var(--font-mono);
+}
+
+/* 结局背景图片 */
+.death-bg-image {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 70%;
+    background-image: url('../ending/ending2.jpg');
+    background-size: cover;
+    background-position: center 30%; /* 向上偏移，露出更多底部内容 */
+    background-repeat: no-repeat;
+    /* 使用 mask 实现底部渐变融合 */
+    -webkit-mask-image: linear-gradient(to bottom,
+        rgba(0,0,0,1) 0%,
+        rgba(0,0,0,1) 60%,
+        rgba(0,0,0,0) 100%);
+    mask-image: linear-gradient(to bottom,
+        rgba(0,0,0,1) 0%,
+        rgba(0,0,0,1) 60%,
+        rgba(0,0,0,0) 100%);
+    z-index: 0;
+    pointer-events: none;
+}
+
+/* 额外的渐变覆盖层，增强融合效果 */
+.death-bg-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 75%;
+    background: linear-gradient(to bottom,
+        transparent 0%,
+        transparent 50%,
+        rgba(5, 5, 5, 0.3) 70%,
+        rgba(5, 5, 5, 0.7) 85%,
+        #050505 100%);
+    z-index: 1;
+    pointer-events: none;
+}
+.death-header {
+    width: 100%; border-bottom: 2px solid #ef4444; color: #ef4444; font-size: 0.8rem;
+    padding-bottom: 0.5rem; margin-bottom: 2rem; letter-spacing: 2px; opacity: 0.7;
+}
+.death-console { 
+width: 100%; max-width: 600px; font-size: 1.1rem; line-height: 2; color: #e5e5e5; 
+z-index: 10; /* 确保在背景图之上 */
+position: relative;
+/* 文字阴影增强可读性 */
+text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 0, 0, 0.6);
+}
+
+/* 结局大标题 */
+.death-title {
+    position: relative;
+    z-index: 10;
+    font-family: var(--font-mono);
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #ef4444;
+    letter-spacing: 4px;
+    text-align: center;
+    margin-bottom: 2rem;
+    text-shadow: 
+        0 0 20px rgba(239, 68, 68, 0.6),
+        0 0 40px rgba(239, 68, 68, 0.4),
+        0 4px 10px rgba(0, 0, 0, 0.8);
+    animation: titleGlow 2s ease-in-out infinite alternate;
+}
+
+@keyframes titleGlow {
+    0% { 
+        text-shadow: 
+            0 0 20px rgba(239, 68, 68, 0.6),
+            0 0 40px rgba(239, 68, 68, 0.4),
+            0 4px 10px rgba(0, 0, 0, 0.8);
+    }
+    100% { 
+        text-shadow: 
+            0 0 30px rgba(239, 68, 68, 0.8),
+            0 0 60px rgba(239, 68, 68, 0.5),
+            0 4px 10px rgba(0, 0, 0, 0.8);
+    }
+}
+.death-highlight { color: #ef4444; font-weight: bold; }
+.death-dim { color: #666; font-size: 0.9rem; }
+.death-line { margin-bottom: 0.5rem; border-left: 2px solid #333; padding-left: 1rem; }
+
+.blinking-cursor { color: #ef4444; animation: blink 0.8s step-end infinite; }
+
+.death-controls {
+    margin-top: 4rem; text-align: center; opacity: 0; transform: translateY(20px); transition: all 1s ease;
+    z-index: 10; position: relative;
+}
+.death-controls.visible { opacity: 1; transform: translateY(0); }
+.retry-prompt { color: #888; margin-bottom: 1.5rem; font-size: 0.9rem; }
+.death-controls .btn-retry {
+    background: transparent; border: 1px solid #ef4444; color: #ef4444; padding: 0.8rem 3rem;
+    font-size: 1.2rem; cursor: pointer; font-family: var(--font-mono); transition: all 0.2s;
+}
+.death-controls .btn-retry:hover { background: #ef4444; color: black; box-shadow: 0 0 15px #ef4444; }
+
+/* 跳过按钮 */
+.btn-skip {
+    position: absolute;
+    bottom: 40px;
+    right: 40px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid #ef4444;
+    color: #ef4444;
+    padding: 0.6rem 1.5rem;
+    font-size: 0.95rem;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    letter-spacing: 2px;
+    transition: all 0.2s ease;
+    text-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+    animation: skipPulse 1.5s ease-in-out infinite;
+    z-index: 20; /* 确保在最上层 */
+}
+.btn-skip:hover {
+    border-color: #fff;
+    color: #fff;
+    background: rgba(239, 68, 68, 0.3);
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+    text-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
+}
+.btn-skip.hidden {
+    display: none;
+}
+@keyframes skipPulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+
+/* 按钮故障特效 */
+.glitch-hover:hover {
+    animation: glitch-skew 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both infinite;
+    background: var(--hacker-green) !important; color: #000 !important;
+    text-shadow: 2px 0 #fff, -2px 0 #ef4444;
+}
+
+/* =========================================
+   8. 动画关键帧 (Keyframes)
+   ========================================= */
+@keyframes shakeScreen {
+    0% { transform: translate(0, 0); }
+    25% { transform: translate(-5px, 5px); }
+    50% { transform: translate(5px, -5px); }
+    75% { transform: translate(-5px, -5px); }
+    100% { transform: translate(0, 0); }
+}
+@keyframes noiseShift { 0% { background-position: 0 0; } 100% { background-position: 100px 100px; } }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes spin { 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+@keyframes bounce { from { top: -20px; } to { top: -25px; } }
+@keyframes lootPulse {
+    0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.8); }
+    70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+}
+@keyframes borderBreathe {
+    0% { border-color: rgba(255, 255, 255, 0.2); box-shadow: 0 0 0 rgba(255, 255, 255, 0); }
+    100% { border-color: rgba(255, 255, 255, 0.7); box-shadow: 0 0 15px rgba(255, 255, 255, 0.15); }
+}
+@keyframes simpleRipple {
+    0% { width: 0%; height: 0%; opacity: 0.8; }
+    100% { width: 100%; height: 100%; opacity: 0; }
+}
+@keyframes shake {
+    0% { transform: translate(1px, 1px) rotate(0deg); }
+    10% { transform: translate(-1px, -2px) rotate(-1deg); }
+    30% { transform: translate(3px, 2px) rotate(0deg); }
+    50% { transform: translate(-1px, 2px) rotate(-1deg); }
+    70% { transform: translate(3px, 1px) rotate(-1deg); }
+    90% { transform: translate(1px, 2px) rotate(0deg); }
+}
+@keyframes glitchEntry {
+    0% { transform: scale(0.8) translateX(-10px); opacity: 0.5; }
+    50% { transform: scale(1.1) translateX(10px); opacity: 1; }
+    100% { transform: scale(1); translateX(0); }
+}
+@keyframes glitch-skew {
+    0% { transform: translate(0); }
+    20% { transform: translate(-2px, 2px); }
+    40% { transform: translate(-2px, -2px); }
+    60% { transform: translate(2px, 2px); }
+    80% { transform: translate(2px, -2px); }
+    100% { transform: translate(0); }
+}
+@keyframes panicShake {
+    0% { transform: translate(-50%, -105%) rotate(0deg); }
+    25% { transform: translate(-52%, -103%) rotate(-2deg); }
+    50% { transform: translate(-48%, -107%) rotate(2deg); }
+    75% { transform: translate(-51%, -104%) rotate(-1deg); }
+    100% { transform: translate(-49%, -106%) rotate(1deg); }
+}
+@keyframes textGlitch {
+    0% { opacity: 1; transform: translateX(0); }
+    50% { opacity: 0.8; transform: translateX(2px); }
+    100% { opacity: 1; transform: translateX(-2px); }
+}
+
+/* =========================================
+   9. 信号中断过渡效果 (Signal Lost Transition)
+   ========================================= */
+.signal-lost-layer {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 1000;
+    background: #0a0a0a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.signal-lost-layer.visible {
+    opacity: 1;
+}
+.signal-lost-layer.hidden {
+    display: none !important;
+}
+
+/* 雪花噪点背景 */
+.static-noise {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    opacity: 0.15;
+    animation: staticFlicker 0.1s steps(5) infinite;
+}
+
+/* 信号条纹扫描线 */
+.signal-lost-layer::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 2px,
+            rgba(255, 255, 255, 0.03) 2px,
+            rgba(255, 255, 255, 0.03) 4px
+    );
+    pointer-events: none;
+    animation: scanlineMove 0.5s linear infinite;
+}
+
+/* 中央文字区域 */
+.signal-text {
+    text-align: center;
+    z-index: 10;
+    animation: signalTextFlicker 0.15s infinite;
+}
+.signal-icon {
+    font-size: 48px;
+    color: #ef4444;
+    margin-bottom: 20px;
+    animation: iconPulse 0.5s ease-in-out infinite alternate;
+}
+.signal-msg {
+    font-family: var(--font-mono);
+    font-size: 32px;
+    font-weight: bold;
+    color: #fff;
+    letter-spacing: 8px;
+    text-shadow:
+            2px 0 #ef4444,
+            -2px 0 #3b82f6,
+            0 0 20px rgba(255, 255, 255, 0.5);
+    margin-bottom: 15px;
+}
+.signal-code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: #666;
+    letter-spacing: 2px;
+}
+
+/* 信号强度条 */
+.signal-bars {
+    position: absolute;
+    top: 30px;
+    right: 30px;
+    display: flex;
+    gap: 3px;
+    align-items: flex-end;
+}
+.signal-bars span {
+    width: 6px;
+    background: #ef4444;
+    animation: barFlicker 0.2s steps(2) infinite;
+}
+.signal-bars span:nth-child(1) { height: 6px; animation-delay: 0s; }
+.signal-bars span:nth-child(2) { height: 10px; animation-delay: 0.05s; }
+.signal-bars span:nth-child(3) { height: 14px; animation-delay: 0.1s; }
+.signal-bars span:nth-child(4) { height: 18px; animation-delay: 0.15s; }
+.signal-bars span:nth-child(5) { height: 22px; animation-delay: 0.2s; }
+
+/* =========================================
+   11. LOCK SCREEN (END GAME)
+   ========================================= */
+.lock-screen {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: #000; z-index: 10000;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Consolas', monospace; color: #ccc;
+    opacity: 0; transition: opacity 2s ease-in;
+    pointer-events: none; /* 防止点击穿透，但在visible时改为auto */
+}
+.lock-screen.visible { opacity: 1; pointer-events: auto; }
+
+.lock-container {
+    width: 600px; max-width: 90%;
+    border: 2px solid #333; padding: 2px;
+    background: #050505;
+    box-shadow: 0 0 30px rgba(0,0,0,0.8);
+}
+
+.lock-header {
+    background: #ef4444; color: #000; font-weight: bold;
+    text-align: center; padding: 10px; letter-spacing: 2px;
+    animation: flashHeader 2s infinite;
+}
+
+.lock-body { padding: 40px; }
+.lock-status { border-bottom: 1px solid #333; padding-bottom: 20px; margin-bottom: 30px; line-height: 1.8; font-size: 14px; }
+.lock-timer-box { text-align: center; margin-bottom: 40px; border: 1px dashed #444; padding: 20px; }
+.lock-label { font-size: 12px; color: #666; letter-spacing: 4px; margin-bottom: 10px; }
+.lock-date { font-size: 32px; color: #ef4444; font-weight: bold; letter-spacing: 5px; text-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
+.lock-sub { font-size: 10px; color: #444; margin-top: 10px; animation: blink 1s infinite; }
+.lock-console { font-size: 12px; color: #666; line-height: 1.5; height: 100px; overflow: hidden; border-top: 1px solid #333; padding-top: 10px; }
+
+@keyframes flashHeader {
+    0%, 100% { background: #ef4444; color: #000; }
+    50% { background: #000; color: #ef4444; }
+}
+
+/* =========================================
+   10. 多语言控制 (Localization)
+   ========================================= */
+
+/* 当 body 是中文模式时，隐藏仅英文元素 */
+body.lang-cn .lang-en-only {
+    display: none !important;
+}
+
+/* 当 body 是英文模式时，隐藏仅中文元素 */
+body.lang-en .lang-cn-only {
+    display: none !important;
+}
+/* 信号层动画关键帧 */
+@keyframes staticFlicker {
+    0% { transform: translate(0, 0); }
+    25% { transform: translate(-2%, 1%); }
+    50% { transform: translate(1%, -2%); }
+    75% { transform: translate(-1%, 2%); }
+    100% { transform: translate(2%, -1%); }
+}
+@keyframes scanlineMove {
+    0% { background-position: 0 0; }
+    100% { background-position: 0 100px; }
+}
+@keyframes signalTextFlicker {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+    75% { opacity: 0.95; transform: translateX(1px); }
+}
+@keyframes iconPulse {
+    0% { opacity: 0.6; transform: scale(0.95); }
+    100% { opacity: 1; transform: scale(1.05); }
+}
+@keyframes barFlicker {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* =========================================
+   12. 跳过游戏按钮与确认弹窗 (Skip Game)
+   ========================================= */
+
+/* 跳过按钮 - 右上角 */
+.skip-game-btn {
+    position: absolute;
+    top: 60px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.5);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    pointer-events: auto;
+    z-index: 100;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(5px);
+}
+.skip-game-btn:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.5);
+    color: #ef4444;
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
+}
+.skip-game-btn:hover .skip-icon {
+    color: #ef4444;
+}
+.skip-game-btn .skip-icon {
+    font-size: 12px;
+    transition: color 0.3s;
+}
+.skip-game-btn .skip-text {
+    text-transform: uppercase;
+}
+
+/* 确认弹窗遮罩层 */
+.skip-confirm-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.skip-confirm-overlay.visible {
+    opacity: 1;
+}
+.skip-confirm-overlay.hidden {
+    display: none !important;
+}
+
+/* 确认弹窗内容 */
+.skip-confirm-box {
+    background: #0a0a0a;
+    border: 2px solid #333;
+    border-top: 3px solid #f59e0b;
+    padding: 30px 40px;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(245, 158, 11, 0.1);
+    animation: modalSlideIn 0.3s ease;
+}
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.skip-confirm-icon {
+    font-size: 40px;
+    margin-bottom: 15px;
+}
+
+.skip-confirm-title {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    color: #f59e0b;
+    letter-spacing: 2px;
+    margin-bottom: 15px;
+    text-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+}
+
+.skip-confirm-msg {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    color: #888;
+    line-height: 1.6;
+    margin-bottom: 25px;
+}
+
+.skip-confirm-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.btn-confirm-cancel {
+    background: transparent;
+    border: 1px solid #444;
+    color: #888;
+    padding: 10px 20px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.btn-confirm-cancel:hover {
+    border-color: var(--hacker-green);
+    color: var(--hacker-green);
+    background: rgba(0, 255, 65, 0.05);
+}
+
+.btn-confirm-skip {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid #ef4444;
+    color: #ef4444;
+    padding: 10px 20px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.btn-confirm-skip:hover {
+    background: #ef4444;
+    color: #000;
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+}
