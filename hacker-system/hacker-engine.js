@@ -490,8 +490,12 @@ class GameEngine {
             return;
         }
 
-        const dt = (timestamp - this.lastTime) / 1000;
+        let dt = (timestamp - this.lastTime) / 1000;
         this.lastTime = timestamp;
+
+        if (dt > 0.1 || dt < 0) {
+            dt = 0.016;
+        }
 
         this.updateGuards(dt);
         this.updatePlayer(dt);
@@ -584,6 +588,8 @@ class GameEngine {
     }
 
     updateCamera() {
+        if (!this.levelData) return;
+
         const viewportW = window.innerWidth;
         const viewportH = window.innerHeight;
         const mapBaseW = this.levelData.width || 1000;
