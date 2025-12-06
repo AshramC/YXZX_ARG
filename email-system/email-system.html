@@ -76,9 +76,7 @@
   // 1. 动态加载脚本辅助函数
   function loadScript(src) {
     return new Promise((resolve, reject) => {
-      // 移除所有旧的 config 脚本（包括加密版和明文版）
       document.querySelectorAll(`script[src*="email-config"]`).forEach(s => s.remove());
-
       const script = document.createElement('script');
       script.src = src + '?t=' + Date.now();
       script.onload = () => resolve();
@@ -87,21 +85,16 @@
     });
   }
 
-  // 2. 核心重载函数 (由 lang-switch.js 调用)
+  // 2. 核心重载函数
   window.reloadConfig = async function(lang) {
     try {
-      // 使用通用加载器
       await UnifiedLoader.load(
-              'email-config',          // 文件名前缀
-              'EmailSystemConfig',     // 目标变量
-              'ENCRYPTED_EMAIL_CONFIG',// 加密变量
-              lang                     // 当前语言
+              'email-config',
+              'EmailSystemConfig',
+              'ENCRYPTED_EMAIL_CONFIG',
+              lang
       );
-
-      // UI 初始化逻辑 (保持原样)
       initApp();
-
-      // 保持阅读状态逻辑 (保持原样)
       const activeItem = document.querySelector('.email-item.active');
       if(activeItem) {
         openEmail(activeItem.id.replace('item-', ''));
@@ -134,46 +127,101 @@
       return;
     }
 
-    // 更新用户显示名 (直接从 Config 读最新的语言版本)
     const userAccount = EmailSystemConfig.accounts.find(a => a.id === currentUserEmail);
     const displayName = userAccount ? userAccount.displayName : currentUserEmail;
     document.getElementById('userEmailDisplay').textContent = `${displayName} <${currentUserEmail}>`;
 
-    // 准备邮件数据
     const userPersonalEmails = EmailSystemConfig.mailboxes[currentUserEmail] || [];
     const commonEmails = EmailSystemConfig.commonEmails || [];
 
-    allUserEmails = [...userPersonalEmails, ...commonEmails].sort((a, b) => {
-      const pA = a.priority || 0;
-      const pB = b.priority || 0;
-      if (pA !== pB) return pB - pA;
-      return new Date(b.date) - new Date(a.date);
-    });
+    // 合并所有可能邮件，不需要在此处排序，过滤时会处理
+    allUserEmails = [...userPersonalEmails, ...commonEmails];
 
     // 初始渲染
     renderList(getEmailsToDisplay(""));
   }
 
-  // 4. 过滤逻辑
+  // 4. 核心过滤逻辑 (修复排序版)
   function getEmailsToDisplay(keyword = "") {
     const term = keyword.trim().toLowerCase();
 
-    if (!term) return allUserEmails.filter(email => !email.hidden).slice(0, 10);
+    // === A. 搜索模式 ===
+    if (term) {
+      return allUserEmails.filter(email => {
+        const hasTrigger = !!email.trigger;
+        const isTriggerUnlocked = hasTrigger && localStorage.getItem(email.trigger) === 'true';
 
-    return allUserEmails.filter(email => {
-      // 隐藏邮件只有搜中关键词才显示
-      if (email.hidden) {
-        const definedKeywords = email.keywords || [];
-        // 注意：build.js 生成时 keywords 也会被分离
-        // 如果你在 YAML 里 keywords 是数组，这里直接用
-        return definedKeywords.some(k => k.toLowerCase() === term);
+        // 未解锁的剧情邮件不可搜
+        if (hasTrigger && !isTriggerUnlocked) return false;
+
+        if (email.hidden) {
+          const definedKeywords = email.keywords || [];
+          if (hasTrigger && isTriggerUnlocked) {
+            const subject = (email.subject || "").toLowerCase();
+            return subject.includes(term) || definedKeywords.some(k => k.toLowerCase() === term);
+          }
+          return definedKeywords.some(k => k.toLowerCase() === term);
+        }
+
+        const subject = (email.subject || "").toLowerCase();
+        const sender = (email.sender || "").toLowerCase();
+        return subject.includes(term) || sender.includes(term);
+      });
+    }
+
+    // === B. 默认列表模式 (优先级分层) ===
+
+    let eventEmails = []; // 剧情解锁 (Top)
+    let highPriority = []; // 高优置顶 (Middle)
+    let normalEmails = []; // 普通邮件 (Bottom)
+
+    allUserEmails.forEach(email => {
+      // 1. 剧情触发器检查
+      if (email.trigger) {
+        if (localStorage.getItem(email.trigger) === 'true') {
+          eventEmails.push(email);
+        }
+        return;
       }
 
-      // 普通邮件搜索 (直接搜当前语言的文本)
-      const subject = (email.subject || "").toLowerCase();
-      const sender = (email.sender || "").toLowerCase();
-      return subject.includes(term) || sender.includes(term);
+      // 2. 隐藏检查
+      if (email.hidden) return;
+
+      // 3. 普通优先级分类
+      if ((email.priority || 0) > 0) {
+        highPriority.push(email);
+      } else {
+        normalEmails.push(email);
+      }
     });
+
+    // 分组内按时间倒序 (保证组内是新的在上面)
+    const sortByDate = (a, b) => new Date(b.date) - new Date(a.date);
+    eventEmails.sort(sortByDate);
+    highPriority.sort(sortByDate);
+    normalEmails.sort(sortByDate);
+
+    // 填充逻辑 (凑够 10 封)
+    let result = [];
+    const MAX_DISPLAY = 10;
+
+    // 严格按层级拼接，不再进行全局重排序
+    // 层级 1: 剧情邮件 (绝对置顶)
+    result = result.concat(eventEmails);
+
+    // 层级 2: 高优邮件 (如系统通知，即使日期旧也显示在普通邮件前)
+    if (result.length < MAX_DISPLAY) {
+      const need = MAX_DISPLAY - result.length;
+      result = result.concat(highPriority.slice(0, need));
+    }
+
+    // 层级 3: 普通邮件
+    if (result.length < MAX_DISPLAY) {
+      const need = MAX_DISPLAY - result.length;
+      result = result.concat(normalEmails.slice(0, need));
+    }
+
+    return result; // 【关键修改】移除这里的 .sort(sortByDate)
   }
 
   // 5. 渲染列表
@@ -187,8 +235,8 @@
     }
 
     const itemsHtml = emails.map(email => {
-      const isHigh = (email.priority || 0) > 0;
-      // 直接使用 email.sender 等字段，它们已经是当前语言的字符串了
+      // 触发式剧情邮件也视为高优显示
+      const isHigh = (email.priority || 0) > 0 || !!email.trigger;
       return `
           <div class="email-item ${!email.read ? 'unread' : ''} ${isHigh ? 'high-priority' : ''}"
                onclick="openEmail('${email.id}')" id="item-${email.id}">
@@ -203,7 +251,7 @@
 
     const footerHtml = `
         <div class="list-hint">
-          ${isEn ? "Showing recent 10 emails" : "仅显示10最近邮件，更多内容请使用上方搜索"}
+          ${isEn ? "Showing recent emails" : "仅显示最近邮件，更多内容请使用上方搜索"}
         </div>
       `;
     emailListEl.innerHTML = itemsHtml + footerHtml;
@@ -214,7 +262,6 @@
     const email = allUserEmails.find(m => m.id === id);
     if(!email) return;
 
-    // 样式更新
     document.querySelectorAll('.email-item').forEach(el => el.classList.remove('active'));
     const itemEl = document.getElementById(`item-${id}`);
     if(itemEl) {
@@ -223,7 +270,6 @@
     }
     email.read = true;
 
-    // 渲染内容 (直接插入，Config里已经是HTML字符串了)
     const emailViewEl = document.getElementById('emailViewContent');
     const isEn = localStorage.getItem('app_lang') === 'en';
 
@@ -243,10 +289,8 @@
         </div>
     `;
 
-    // 移动端处理
     if(window.innerWidth <= 768) {
       document.getElementById('mainView').classList.add('active');
-      // 添加返回按钮
       const backBtn = document.createElement('button');
       backBtn.className = 'btn btn-ghost';
       backBtn.innerHTML = isEn ? '← Back' : '← 返回列表';
@@ -261,15 +305,12 @@
     window.location.href = 'email-login.html';
   }
 
-  // 绑定搜索
   document.getElementById('emailSearchInput').addEventListener('input', (e) => {
     renderList(getEmailsToDisplay(e.target.value));
   });
 
-  // 启动
   (async function(){
     const currentLang = localStorage.getItem('app_lang') || 'cn';
-    // 首次加载配置
     await window.reloadConfig(currentLang);
   })();
 

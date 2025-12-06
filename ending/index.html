@@ -3,142 +3,255 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>距离张晨出现...</title>
+    <title>系统通知</title>
     <style>
-        /* 全局设置 */
+        /* ==================== 核心视觉定义 ==================== */
+        :root {
+            --danger-color: #ff003c;
+            --mail-color: #0d9488; /* 对应邮件系统的青色 */
+            --bg-color: #050505;
+            --font-display: "Impact", "Arial Black", sans-serif;
+            --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
         body, html {
-            margin: 0;
-            padding: 0;
-            height: 100%;
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: var(--bg-color);
             overflow: hidden;
-            background-color: #000;
+            font-family: var(--font-ui);
+            user-select: none;
         }
 
-        .bg-container {
-            /* 背景图设置 */
-            background-image: url('bg.jpg'); /* 确保图片叫 bg.jpg */
+        /* 背景层：手电筒图片 */
+        #bg-layer {
+            position: absolute; inset: 0;
+            background-image: url('bg.jpg');
             background-position: center;
-            background-repeat: no-repeat;
             background-size: cover;
-            
-            height: 100%;
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
+            background-repeat: no-repeat;
+            z-index: 1;
+            transition: filter 0.5s, opacity 2s ease-in;
+            opacity: 1;
         }
 
-        .countdown-box {
-            margin-top: 5vh; /* 稍微靠上一点，给大字体留空间 */
+        /* 屏幕特效：保留一点点暗角增加电影感 */
+        .vignette {
+            position: absolute; inset: 0; z-index: 2; pointer-events: none;
+            background: radial-gradient(circle, transparent 50%, #000 150%);
+        }
+
+        /* ==================== 阶段一：恐惧 (RED) ==================== */
+        #panic-ui {
+            position: absolute; inset: 0; z-index: 10;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            mix-blend-mode: hard-light;
+            transition: opacity 0.5s;
+        }
+
+        .panic-title {
+            font-family: var(--font-display);
+            font-size: 8rem;
+            color: var(--danger-color);
+            text-transform: uppercase;
+            letter-spacing: 10px;
+            text-shadow: 4px 4px 0px #000, 0 0 30px rgba(255, 0, 60, 0.8);
+            animation: shake 0.5s infinite;
+        }
+
+        .panic-sub {
+            font-size: 2rem; color: #fff; background: var(--danger-color);
+            padding: 10px 30px; font-weight: bold; letter-spacing: 5px;
+            margin-top: 20px;
+            box-shadow: 0 0 20px rgba(255, 0, 60, 0.5);
+        }
+
+        /* ==================== 阶段二：潜伏 (日期跳动) ==================== */
+        #time-lapse-ui {
+            position: absolute; inset: 0; z-index: 20;
+            display: flex; justify-content: center; align-items: center;
+            opacity: 0; pointer-events: none;
+            transition: opacity 1s;
+        }
+
+        .date-counter {
+            font-size: 5rem; font-weight: 300;
+            color: #888; letter-spacing: 5px;
+            font-family: var(--font-display);
+        }
+
+        /* ==================== 阶段三：邮件通知 (Notification) ==================== */
+        #notification-ui {
+            position: absolute; inset: 0; z-index: 30;
+            display: flex; justify-content: center; align-items: center;
+            background: rgba(0,0,0,0.85); /* 深色背景衬托白色卡片 */
+            opacity: 0; pointer-events: none;
+            transition: opacity 1.5s ease;
+        }
+
+        /* 模仿邮件系统的通知卡片 */
+        .mail-card {
+            background: #fff;
+            width: 400px;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
             text-align: center;
-            z-index: 10;
-            
-            /* 宋体/明体：尖锐、冷峻 */
-            font-family: "SimSun", "Songti SC", "STSong", "Times New Roman", serif;
-            font-weight: bold;
-            color: #cc0000;
-            mix-blend-mode: normal; 
+            transform: translateY(20px);
+            animation: slideUpCard 0.8s ease forwards;
         }
 
-        /* 标题文字样式 - 已加大 */
-        .title-text {
-            font-size: 4rem; /* 原来是 2.5rem */
-            letter-spacing: 5px;
-            
-            /* 文字阴影 */
-            text-shadow: 
-                3px 3px 0px #000000,
-                0 0 10px #ff0000;
-            
-            /* 动画加速：0.8s 是一次急促的呼吸 */
-            animation: pulse-glitch 0.8s infinite alternate;
+        .card-header {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+            color: #64748b;
+            font-size: 0.9rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
         }
 
-        /* 倒计时数字样式 - 已加大 */
-        #timer {
-            display: block;
-            margin-top: 10px;
-            
-            /* 机械字体 */
-            font-family: "Courier New", Courier, monospace; 
-            font-size: 6rem; /* 原来是 3.5rem */
-            font-weight: 900;
-            
-            color: #ff3333;
-            
-            text-shadow: 
-                4px 4px 0px #000000,
-                0 0 20px #8b0000;
-                
-            letter-spacing: -2px; /* 数字紧凑一点更有压迫感 */
+        .card-body {
+            color: #1e293b;
+            margin-bottom: 25px;
         }
 
-        /* --- 动画特效：急促呼吸 --- */
-        @keyframes pulse-glitch {
-            0% {
-                opacity: 1;
-                text-shadow: 3px 3px 0px #000, 0 0 10px #ff0000;
-                transform: scale(1);
-            }
-            50% {
-                opacity: 0.9;
-                transform: scale(1.02); /* 微微膨胀 */
-            }
-            100% {
-                opacity: 0.7; /* 变暗 */
-                text-shadow: 3px 3px 0px #000, 0 0 25px #cc0000; /* 光晕扩散 */
-                transform: scale(1.01);
-            }
+        .recipient {
+            font-size: 1.1rem; margin-bottom: 15px; color: #334155;
         }
 
-        /* 手机端适配：如果不适配，大字号会撑破屏幕 */
-        @media (max-width: 768px) {
-            .title-text { font-size: 2rem; }
-            #timer { font-size: 3rem; }
-            .countdown-box { margin-top: 10vh; }
+        .new-mail-alert {
+            font-size: 1.2rem; font-weight: bold; color: var(--mail-color);
+            margin-bottom: 20px; display: flex; align-items: center; justify-content: center; gap: 10px;
         }
+
+        .mail-info {
+            background: #f1f5f9; padding: 15px; border-radius: 8px;
+            text-align: left; font-size: 0.95rem; line-height: 1.6;
+            border-left: 4px solid var(--mail-color);
+        }
+
+        .system-hint {
+            margin-top: 25px; font-size: 0.85rem; color: #ef4444;
+            background: #fef2f2; padding: 10px; border-radius: 6px;
+        }
+
+        .btn-login {
+            display: block; width: 100%; margin-top: 20px;
+            background: var(--mail-color); color: white;
+            border: none; padding: 12px; border-radius: 6px;
+            font-size: 1rem; font-weight: 600; cursor: pointer;
+            text-decoration: none; transition: background 0.2s;
+        }
+        .btn-login:hover { background: #0f766e; }
+
+        /* ==================== 动画 ==================== */
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+        @keyframes slideUpCard { to { transform: translateY(0); } }
+
+        /* 状态类 */
+        body.step-2 #bg-layer { opacity: 0; filter: blur(20px); } /* 背景黑掉 */
+        body.step-2 #panic-ui { opacity: 0; } /* 红色字消失 */
+        body.step-2 #time-lapse-ui { opacity: 1; } /* 显示日期 */
+
+        body.step-3 #time-lapse-ui { opacity: 0; } /* 日期消失 */
+        body.step-3 #notification-ui { opacity: 1; pointer-events: auto; } /* 显示卡片 */
+
     </style>
 </head>
 <body>
 
-    <div class="bg-container">
-        <div class="countdown-box">
-            <div class="title-text">距离张晨出现还有</div>
-            <div id="timer">...</div>
+<div class="vignette"></div>
+<div id="bg-layer"></div>
+
+<div id="panic-ui">
+    <div class="panic-title">快跑！！</div>
+    <div class="panic-sub">立刻离开宿舍！！</div>
+</div>
+
+<div id="time-lapse-ui">
+    <div id="date-display" class="date-counter">2025.11.17</div>
+</div>
+
+<div id="notification-ui">
+    <div class="mail-card">
+        <div class="card-header">异象中学邮件中心 · 通知</div>
+
+        <div class="card-body">
+            <div class="recipient">致：吴宇 (2023012064)</div>
+            <div class="new-mail-alert">
+                <span>📩</span> 您有一封新的未读邮件
+            </div>
+
+            <div class="mail-info">
+                <strong>发件人：</strong> 张晨<br>
+                <strong>发送时间：</strong> 2025-11-28 23:42<br>
+                <strong>主题：</strong> “只有你能帮我了”
+            </div>
+
+            <div class="system-hint">
+                ⚠ 系统提示：请在终端重新登录吴宇的邮箱账户进行查阅
+            </div>
         </div>
+
+        <button class="btn-login" onclick="window.location.href='../terminal/index.html'">
+            返回统一终端首页
+        </button>
     </div>
+</div>
 
-    <script>
-        // 目标时间：2025年11月30日
-        const targetDate = new Date("2025-11-30T00:00:00").getTime();
+<script>
+    const START_DATE = new Date("2025-11-17").getTime();
+    const END_DATE = new Date("2025-11-28").getTime();
 
-        function updateCountdown() {
-            const now = new Date().getTime();
-            const distance = targetDate - now;
+    window.onload = function() {
+        // 3秒后进入 Phase 2 (黑屏+日期)
+        setTimeout(() => {
+            document.body.classList.add('step-2');
+            setTimeout(runTimeLapse, 1000); // 黑屏1秒后开始滚日期
+        }, 3000);
+    };
 
-            if (distance < 0) {
-                document.getElementById("timer").innerHTML = "HE IS HERE";
-                document.querySelector(".title-text").innerText = "张晨已至";
-                document.querySelector(".countdown-box").style.color = "#550000"; 
-                return;
+    function runTimeLapse() {
+        let dateDisplay = document.getElementById('date-display');
+        let current = START_DATE;
+        // 控制滚动速度：30帧滚完，每帧50ms = 1.5秒
+        let step = (END_DATE - START_DATE) / 30;
+
+        let timer = setInterval(() => {
+            current += step;
+            if (current >= END_DATE) {
+                current = END_DATE;
+                clearInterval(timer);
+                // 滚动结束，进入 Phase 3
+                setTimeout(() => {
+                    showFinalTarget();
+                    document.body.classList.add('step-3');
+                }, 500);
             }
 
-            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+            let d = new Date(current);
+            // 格式：2025.11.17
+            let dateStr = d.getFullYear() + '.' +
+                String(d.getMonth() + 1).padStart(2, '0') + '.' +
+                String(d.getDate()).padStart(2, '0');
+            dateDisplay.innerText = dateStr;
+        }, 50);
+    }
 
-            const d = days;
-            const h = hours < 10 ? "0" + hours : hours;
-            const m = minutes < 10 ? "0" + minutes : minutes;
-            const s = seconds < 10 ? "0" + seconds : seconds;
-
-            // 修改这里：将 D 换成了 天
-            document.getElementById("timer").innerText = `${d}天 ${h}:${m}:${s}`;
-        }
-
-        updateCountdown();
-        setInterval(updateCountdown, 1000);
-    </script>
+    function showFinalTarget() {
+        // 写入剧情标记
+        localStorage.setItem('PLOT_ZC_ESCAPED', 'true');
+    }
+</script>
 </body>
 </html>
