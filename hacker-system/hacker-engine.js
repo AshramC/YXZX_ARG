@@ -877,6 +877,7 @@ class GameEngine {
             document.querySelector('.monitor-wrapper').classList.remove('shaking');
             document.getElementById('glitchLayer').style.opacity = 0;
             document.getElementById('glitchLayer').style.filter = "none";
+            this.startBgm();
             const signalLayer = document.getElementById('signalLostLayer');
             if (signalLayer) {
                 signalLayer.classList.remove('visible');
@@ -1467,6 +1468,7 @@ class GameEngine {
             // 重置游戏状态
             this.isGameOver = false;
             this.stopPanic();
+            this.startBgm();
 
             // 直接传送玩家到小游戏节点
             this.player.nodeId = targetNode.id;
