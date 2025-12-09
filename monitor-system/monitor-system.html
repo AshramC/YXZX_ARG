@@ -42,6 +42,14 @@
     </aside>
 
     <main class="main-view">
+
+        <div id="deduce-btn-container" style="display:none;">
+            <button id="btn-deduce-trigger" class="btn" style="padding: 10px 20px; border-color: var(--cctv-text);">
+                <span class="lang-cn-only">✦ 推断藏身处</span>
+                <span class="lang-en-only">✦ DEDUCE LOCATION</span>
+            </button>
+        </div>
+
         <div class="monitor-screen" id="screenContainer">
             <div style="color: #444;">NO SIGNAL</div>
         </div>
@@ -64,50 +72,96 @@
     </main>
 </div>
 
+<div id="quiz-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+        <h3 id="quiz-question">
+        </h3>
+        <div id="quiz-options" class="options-list">
+        </div>
+        <div style="margin-top: 2rem;">
+            <button id="btn-quiz-cancel" class="btn" style="border-color: #444; color: #666;">
+                <span class="lang-cn-only">取消</span><span class="lang-en-only">CANCEL</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="sys-notification" class="sys-screen" style="display: none;">
+    <div class="sys-content">
+        <div class="sys-header">
+            <div class="sys-title">系统通知</div>
+            <div style="color: var(--cctv-green);">状态：已确认</div>
+        </div>
+
+        <div class="msg-meta">
+            <div class="msg-row">
+                <span class="msg-label">事件类型：</span>
+                <span class="msg-val">加密信号拦截</span>
+            </div>
+            <div class="msg-row">
+                <span class="msg-label">发送方：</span>
+                <span class="msg-val hacker">未知来源 (匿名黑客)</span>
+            </div>
+            <div class="msg-row">
+                <span class="msg-label">接收账号：</span>
+                <span class="msg-val user">吴宇 (ID: 2023012064)</span>
+            </div>
+            <div class="msg-row">
+                <span class="msg-label">信号定位：</span>
+                <span class="msg-val">图书馆区域 (Academic Zone)</span>
+            </div>
+        </div>
+
+        <div class="instruction-text">
+            <p style="font-size: 1.1rem; line-height: 1.8; color: #bbb;">
+                系统已拦截到一条针对该账户的定向加密留言。<br>
+                由于安全协议限制，该消息无法在监控系统内解码。<br><br>
+
+                请立即登录 <span class="highlight-terminal">聊天终端</span> 查看完整内容。
+            </p>
+        </div>
+
+        <button id="btn-sys-confirm" class="btn" style="width: 100%; padding: 1rem; margin-top: 1rem;">
+            关闭通知
+        </button>
+    </div>
+</div>
+
 <script src="../tools/decrypt-lib.js"></script>
 <script src="../tools/lang-switch.js"></script>
 <script src="../tools/config-loader.js"></script>
 <script src="../tools/monitor-generator.js"></script>
-
 <script>
     // === 核心变量 ===
     let currentMapId = null;
-    let currentDate = null; // 当前选中的日期
+    let currentDate = null;
     let currentTime = 8.000;
     let isPlaying = false;
     let animationFrameId = null;
     let lastTimestamp = 0;
 
-    // === 配置: 1小时在现实中播放多久 (毫秒) ===
     const DURATION_PER_HOUR = 10000;
 
-    // === 工具：哈希种子 (用于生成固定的随机值) ===
+    // === 工具函数 ===
     function getHashSeed(str) {
         let val = 0;
         for (let i = 0; i < str.length; i++) {
             val = ((val << 5) - val) + str.charCodeAt(i);
-            val |= 0; // 强制转换为32位整数
+            val |= 0;
         }
-        return Math.abs(val); // 确保是正数
+        return Math.abs(val);
     }
 
-    // === 工具：确定性随机偏移 (普通房间用) ===
     function getStableOffset(str) {
         const seed = getHashSeed(str);
-        return {
-            x: Math.sin(seed) * 1.5,
-            y: Math.cos(seed) * 1.5
-        };
+        return { x: Math.sin(seed) * 1.5, y: Math.cos(seed) * 1.5 };
     }
 
-    // === 工具：确定性场外坐标 (进出场动画用) ===
     function getStableExitPoint(name, timeIndex) {
         let seed = timeIndex + getHashSeed(name);
         const rand = (Math.sin(seed) * 10000) - Math.floor(Math.sin(seed) * 10000);
         const side = Math.floor(rand * 4);
         const position = (rand * 100) % 100;
-
-        // 0:上, 1:右, 2:下, 3:左
         switch(side) {
             case 0: return { x: position, y: -10 };
             case 1: return { x: 110, y: position };
@@ -117,143 +171,229 @@
         return { x: -10, y: -10 };
     }
 
-    // === [新增] 工具：获取角色专属的时间延迟 (0 ~ 0.2小时, 约0-12分钟) ===
-    // 作用：让每个人不仅仅是位置不同，动起来的时间也有先后
     function getPersonalDelay(name) {
         if (!name) return 0;
         const seed = getHashSeed(name);
-        // 取模生成 0~20 的整数，除以100得到 0.00 ~ 0.20
-        // 比如：0.1 代表延后 6 分钟出发
         return (seed % 20) / 100.0;
     }
 
-    // === [核心计算] 获取区域内的动态坐标 ===
-    // === [核心计算] 获取区域内的动态坐标 (增强版) ===
+    // === 区域坐标计算 ===
     function getZoneDynamicPosition(mapId, zoneId, charName, timeFloat, arrivalHour) {
+        if (!MapConfig[mapId]) return null;
         const zone = MapConfig[mapId].zones.find(z => z.id === zoneId);
         if (!zone) return null;
 
         const centerX = zone.x + zone.w / 2;
         const centerY = zone.y + zone.h / 2;
 
-        // 1. 椭圆跑圈 (保持不变)
         if (zone.pathType === 'ellipse') {
             const rx = zone.w / 2;
             const ry = zone.h / 2;
             const speed = 5.0;
             const personalOffset = getHashSeed(charName) % 100;
             const angle = (timeFloat * speed) + personalOffset;
-            return {
-                x: centerX + rx * Math.cos(angle),
-                y: centerY + ry * Math.sin(angle)
-            };
+            return { x: centerX + rx * Math.cos(angle), y: centerY + ry * Math.sin(angle) };
         }
 
-        // 2. 直线运动逻辑 (增强方向控制)
         if (zone.pathType === 'linear-h' || zone.pathType === 'linear-v') {
-            // 获取个人延迟
             const delay = getPersonalDelay(charName);
-
-            // 计算经过时间
             const elapsed = timeFloat - arrivalHour - delay;
-            const duration = 0.5; // 走完单程耗时
-
-            // 计算进度 (0.0 ~ 1.0)
-            // Math.max(0, ...) 确保了如果处于延迟期(elapsed < 0)，进度强制为0，人物会钉在起点
+            const duration = 0.5;
             const progress = Math.max(0, Math.min(1, elapsed / duration));
-
-            // [新增] 获取方向配置 (默认 1 为正向，-1 为反向)
-            // 你的 maps-config.js 以后可以给 zone 加 "direction": -1 属性来实现逆行
             const direction = zone.direction || 1;
-
-            // 只有到达终点(progress=1)后才允许稍微散开(jitter)，防止起跑时就在终点乱晃
             const jitterBase = (getHashSeed(charName) % 10) / 5.0;
             const currentJitter = progress >= 1 ? jitterBase : 0;
 
             if (zone.pathType === 'linear-h') {
-                // 水平移动计算
-                // distinctStart: 如果方向是1，起点是 x；如果方向是-1，起点是 x+w (右侧)
                 const startX = direction === 1 ? zone.x : (zone.x + zone.w);
-
-                // totalDistance: 如果方向是1，移动距离是 +w；如果方向是-1，移动距离是 -w
                 const totalDistance = direction === 1 ? zone.w : -zone.w;
-
-                return {
-                    x: startX + (totalDistance * progress),
-                    y: centerY + currentJitter // 高度居中
-                };
+                return { x: startX + (totalDistance * progress), y: centerY + currentJitter };
             } else {
-                // 垂直移动计算 (同理)
                 const startY = direction === 1 ? zone.y : (zone.y + zone.h);
                 const totalDistance = direction === 1 ? zone.h : -zone.h;
-
-                return {
-                    x: centerX + currentJitter, // 宽度居中
-                    y: startY + (totalDistance * progress)
-                };
+                return { x: centerX + currentJitter, y: startY + (totalDistance * progress) };
             }
         }
-
-        // 3. 普通房间 (Static)
         return { x: centerX, y: centerY, isStatic: true };
     }
 
+    // === [关键修改 1] 增强的配置加载器 ===
     window.reloadConfig = async function(lang) {
         try {
-            // 1. 加载所有静态配置
+            // 加载基础配置
             await UnifiedLoader.load('monitor-config', 'MonitorConfig', 'ENCRYPTED_MONITOR_CONFIG', lang);
             await UnifiedLoader.load('maps-config', 'MapConfig', 'ENCRYPTED_MAP_CONFIG', lang);
-            // 这里还需要加载 school 和 const，以便生成器查询档案
             await UnifiedLoader.load('../school-system/school-config', 'SchoolSystemConfig', 'ENCRYPTED_SCHOOL_CONFIG', lang);
-            // 2. [新增] 运行生成器进行“数据水合”
-            // 这会直接修改内存中的 window.MonitorConfig 对象
+            await UnifiedLoader.load('../school-system/characters-config', 'CharacterConfig', 'ENCRYPTED_CHAR_CONFIG', lang);
+
+            // 运行生成器 (传入刚刚加载的 CharacterConfig)
             if (window.MonitorGenerator) {
                 window.MonitorGenerator.run(
                     window.MonitorConfig,
                     window.SchoolSystemConfig,
-                    window.MapConfig
+                    window.MapConfig,
+                    window.CharacterConfig // <--- 关键传入
                 );
             }
 
-            // 3. 初始化系统
             initSystem();
-        } catch(e) { console.error(e); }
+        } catch(e) { console.error("Config Load Error:", e); }
     };
 
+    // ============================================================
+    // 【新功能】推理与引导模块
+    // ============================================================
+    function initDeductionModule() {
+        // 1. 检查 DOM 元素是否存在
+        const triggerContainer = document.getElementById('deduce-btn-container');
+        const triggerBtn = document.getElementById('btn-deduce-trigger');
+        const modal = document.getElementById('quiz-modal');
+        const optionsContainer = document.getElementById('quiz-options');
+        const sysScreen = document.getElementById('sys-notification');
+
+        if (!triggerBtn || !modal) return;
+
+        // 显示入口按钮
+        triggerContainer.style.display = 'block';
+
+        // 2. 配置数据
+        const quizConfig = {
+            correctId: "mc_tsg", // 图书馆
+            wrongIds: ["z_top", "mc_rubbish", "mc_ds"], // 干扰项
+            question: {
+                cn: "根据目前的线索，张晨究竟藏在哪里？",
+                en: "Based on current clues, where is Zhang Chen hiding?"
+            }
+        };
+
+        // 3. 辅助：从 MapConfig 获取双语名称
+        // MapConfig 结构是 { mapId: { zones: [ {id, name:{cn,en}}, ... ] } }
+        function getZoneNameObj(zoneId) {
+            if (!window.MapConfig) return { cn: "未知", en: "Unknown" };
+
+            for (const mapKey in MapConfig) {
+                const map = MapConfig[mapKey];
+                if (map.zones) {
+                    const zone = map.zones.find(z => z.id === zoneId);
+                    if (zone) {
+                        // 兼容 name 是对象 {cn, en} 或 纯字符串的情况
+                        if (typeof zone.name === 'object') return zone.name;
+                        return { cn: zone.name, en: zone.name };
+                    }
+                }
+            }
+            return { cn: "未知区域", en: "Unknown Area" };
+        }
+
+        // 4. 打开弹窗逻辑
+        triggerBtn.onclick = () => {
+            modal.style.display = 'flex';
+            const lang = localStorage.getItem('app_lang') || 'cn';
+
+            // 设置问题
+            const qText = document.getElementById('quiz-question');
+            qText.textContent = (lang === 'en') ? quizConfig.question.en : quizConfig.question.cn;
+
+            // 准备选项
+            let options = [];
+            // 正确项
+            options.push({ id: quizConfig.correctId, ...getZoneNameObj(quizConfig.correctId), isCorrect: true });
+            // 错误项
+            quizConfig.wrongIds.forEach(id => {
+                options.push({ id: id, ...getZoneNameObj(id), isCorrect: false });
+            });
+
+            // 打乱数组
+            options.sort(() => Math.random() - 0.5);
+
+            // 渲染按钮
+            optionsContainer.innerHTML = '';
+            options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'quiz-btn';
+
+                // 显示名字
+                const nameDisplay = (lang === 'en') ? opt.en : opt.cn;
+                // 英文模式下不显示括号，中文模式下如果英文名存在则显示
+                const subText = (lang !== 'en' && opt.en) ? ` <span style="font-size:0.8em; opacity:0.6;">(${opt.en})</span>` : '';
+
+                btn.innerHTML = `[${String.fromCharCode(65 + options.indexOf(opt))}] ${nameDisplay}${subText}`;
+
+                btn.onclick = () => handleAnswer(opt.isCorrect);
+                optionsContainer.appendChild(btn);
+            });
+        };
+
+        // 5. 关闭/取消
+        document.getElementById('btn-quiz-cancel').onclick = () => {
+            modal.style.display = 'none';
+        };
+
+        // 6. 处理回答
+        function handleAnswer(isCorrect) {
+            const lang = localStorage.getItem('app_lang') || 'cn';
+            if (isCorrect) {
+                modal.style.display = 'none';
+                showSuccess();
+            } else {
+                const msg = (lang === 'en')
+                    ? "Analysis failed: Subject trace not found in this sector."
+                    : "分析失败：目标未在该区域留下痕迹。";
+                alert(msg);
+            }
+        }
+
+        // 7. 成功后的流程
+        function showSuccess() {
+            sysScreen.style.display = 'flex';
+            // 重新触发一次语言显示，确保通知页内的 lang-cn-only 等类名生效
+            if (window.updateLangFromStorage) {
+                // 如果你有封装好的更新函数
+                // window.updateLangFromStorage();
+            } else {
+                // 简单的手动触发 (根据 body class)
+                const lang = localStorage.getItem('app_lang') || 'cn';
+                document.body.className = (lang === 'en') ? 'lang-en' : 'lang-cn';
+            }
+        }
+
+        // 8. 最终确认：设置标志位并关闭弹窗
+        document.getElementById('btn-sys-confirm').onclick = () => {
+            // 1. 剧情进度：找到张晨
+            localStorage.setItem('flag_found_zhang_chen', 'true');
+            // 2. 聊天红点：吴宇有新消息（提示玩家去聊天APP）
+            localStorage.setItem('has_new_msg_wuyu', 'true');
+
+            // 3. 仅关闭弹窗，不再跳转
+            sysScreen.style.display = 'none';
+        };
+    }
+
     function initSystem() {
-        // 1. 获取 Session 数据
         const userStr = sessionStorage.getItem('monitor_user');
         if (!userStr) { window.location.href = 'monitor-login.html'; return; }
-        const sessionUser = JSON.parse(userStr);
 
-        // 2. 重新从 Config 中查找用户 (修复多语言切换 Operator 不变的问题)
-        let currentUser = sessionUser;
+        let currentUser = JSON.parse(userStr);
         if (window.MonitorConfig && window.MonitorConfig.accounts) {
-            const freshUser = MonitorConfig.accounts.find(a => a.id === sessionUser.id);
+            const freshUser = MonitorConfig.accounts.find(a => a.id === currentUser.id);
             if (freshUser) currentUser = freshUser;
         }
 
+        // 简单的名字显示逻辑
         const uName = (typeof currentUser.displayName === 'object') ?
-            (currentUser.displayName.cn || currentUser.id) :
-            currentUser.displayName;
-
+            (currentUser.displayName.cn || currentUser.id) : currentUser.displayName;
         document.getElementById('userInfo').textContent = `OPERATOR: ${uName}`;
 
-        // 3. 初始化滑块
-        const settings = MonitorConfig.settings;
+        const settings = MonitorConfig.settings || { startHour: 8, endHour: 18 };
         const slider = document.getElementById('timeSlider');
         slider.min = settings.startHour;
         slider.max = settings.endHour;
         document.getElementById('labelStart').textContent = formatTime(settings.startHour);
         document.getElementById('labelEnd').textContent = formatTime(settings.endHour);
 
-        // 4. 初始化日期选择器
         initDateSelector();
-
-        // 5. 渲染地图列表
         renderMapList();
 
-        // 6. 恢复或初始化地图视图
         if (currentMapId && MapConfig[currentMapId]) {
             switchMap(currentMapId);
         } else {
@@ -261,19 +401,17 @@
             if (firstMapId) switchMap(firstMapId);
         }
 
-        // 7. 强制重置一次时间到起点，确保初始画面正确
         currentTime = settings.startHour;
         slider.value = currentTime;
         document.getElementById('displayTime').textContent = formatTime(currentTime);
         updateScene(currentTime);
-    }
 
-    // === 日期与地图切换 ===
+        initDeductionModule();
+    }
 
     function initDateSelector() {
         const selector = document.getElementById('dateSelector');
         selector.innerHTML = '';
-
         const scenes = MonitorConfig.scenes || {};
         const dates = Object.keys(scenes).sort();
         const lang = localStorage.getItem('app_lang') || 'cn';
@@ -284,39 +422,27 @@
             selector.add(opt);
             return;
         }
-
         dates.forEach(dateStr => {
             const opt = document.createElement('option');
             opt.value = dateStr;
             opt.text = dateStr;
             selector.add(opt);
         });
-
-        if (currentDate && dates.includes(currentDate)) {
-            selector.value = currentDate;
-        } else {
-            currentDate = dates[0];
-            selector.value = currentDate;
-        }
+        currentDate = dates.includes(currentDate) ? currentDate : dates[0];
+        selector.value = currentDate;
     }
 
     function switchDate(newDate) {
         currentDate = newDate;
-
-        // [核心需求] 切换日期时重置进度
         stopPlay();
-
         const btn = document.getElementById('playBtn');
         btn.textContent = "▶ PLAY";
         btn.style.background = "black";
         btn.style.color = "var(--cctv-green)";
 
-        const startHour = MonitorConfig.settings.startHour;
-        currentTime = startHour;
-
+        currentTime = MonitorConfig.settings.startHour;
         document.getElementById('timeSlider').value = currentTime;
         document.getElementById('displayTime').textContent = formatTime(currentTime);
-
         updateScene(currentTime);
     }
 
@@ -336,12 +462,12 @@
     function switchMap(mapId) {
         currentMapId = mapId;
         document.querySelectorAll('.map-list-item').forEach(el => el.classList.remove('active'));
-        document.getElementById(`nav-${mapId}`).classList.add('active');
+        const activeItem = document.getElementById(`nav-${mapId}`);
+        if(activeItem) activeItem.classList.add('active');
         renderMapFrame();
         updateScene(currentTime);
     }
 
-    // === 地图渲染 (Z-Index 修复) ===
     function renderMapFrame() {
         const container = document.getElementById('screenContainer');
         const mapData = MapConfig[currentMapId];
@@ -356,7 +482,6 @@
 
         if (mapData.zones) {
             mapData.zones.forEach(zone => {
-                // 1. 背景/边框 (Box)
                 const box = document.createElement('div');
                 box.className = zone.type === 'circle' ? 'zone-circle' : 'zone-rect';
                 box.style.left = zone.x + '%';
@@ -365,7 +490,6 @@
                 box.style.height = zone.h + '%';
                 box.dataset.zoneId = zone.id;
 
-                // 2. 独立文字标签 (Label)
                 const label = document.createElement('div');
                 label.className = 'zone-label';
                 label.style.left = zone.x + '%';
@@ -381,30 +505,23 @@
         container.appendChild(mapLayer);
     }
 
-    // === [核心] 场景更新逻辑 (含 DISAPPEAR 逻辑 + 延迟起步) ===
+    // === [关键修改 2] 渲染场景与名字翻译 ===
     function updateScene(timeFloat) {
         if (!currentMapId || !currentDate) return;
         const mapLayer = document.getElementById('currentMapLayer');
         if (!mapLayer) return;
 
-        // 清除旧点
         mapLayer.querySelectorAll('.char-dot').forEach(el => el.remove());
 
-        // 日期 -> 地图 -> 角色数据
         const dateData = MonitorConfig.scenes[currentDate];
         if (!dateData) return;
-
         const sceneData = dateData[currentMapId];
         if (!sceneData) return;
 
         const startHour = MonitorConfig.settings.startHour;
         const relativeTime = timeFloat - startHour;
-
         const prevIndex = Math.floor(relativeTime);
-        const trackLength = 24; // 假设一天24小时
-        const nextIndex = (prevIndex + 1) % trackLength;
-
-        // 原始的时间进度 (0.0 ~ 1.0)
+        const nextIndex = (prevIndex + 1) % 24;
         const ratio = relativeTime - prevIndex;
 
         // 辅助：获取到达时间
@@ -413,13 +530,10 @@
             const currentZone = track[idx];
             if (!currentZone || currentZone === 'DISAPPEAR') return startHour + idx;
             let i = idx;
-            while (i > 0 && track[i - 1] === currentZone) {
-                i--;
-            }
+            while (i > 0 && track[i - 1] === currentZone) i--;
             return startHour + i;
         };
 
-        // 辅助：获取原始坐标
         const getRawPos = (zoneId, t, arrT, charName) => {
             if (!zoneId || zoneId === 'DISAPPEAR') return null;
             return getZoneDynamicPosition(currentMapId, zoneId, charName, t, arrT);
@@ -427,89 +541,69 @@
 
         sceneData.forEach(char => {
             if (!char.track) return;
-
             const zoneIdPrev = char.track[prevIndex];
             const zoneIdNext = char.track[nextIndex];
 
-            if (nextIndex < prevIndex && zoneIdPrev === 'DISAPPEAR') {
-                return; // 直接跳过渲染，屏幕上什么都没有
-            }
+            if (nextIndex < prevIndex && zoneIdPrev === 'DISAPPEAR') return;
 
-            // 1. 获取基础坐标
             const arrTimePrev = getArrivalHour(char.track, prevIndex);
             const arrTimeNext = getArrivalHour(char.track, nextIndex);
 
-            // 遇到 DISAPPEAR，视为切换动作，t 取整点
             const tPrev = (zoneIdPrev === zoneIdNext) ? timeFloat : (startHour + prevIndex);
             const tNext = (zoneIdPrev === zoneIdNext) ? timeFloat : (startHour + nextIndex);
 
             let posPrev = getRawPos(zoneIdPrev, tPrev, arrTimePrev, char.name);
             let posNext = getRawPos(zoneIdNext, tNext, arrTimeNext, char.name);
 
-            // 2. 进出场与瞬移逻辑
-            if (posPrev && !posNext) {
-                if (zoneIdNext !== 'DISAPPEAR') {
-                    posNext = getStableExitPoint(char.name, prevIndex);
-                }
-            }
-            if (!posPrev && posNext) {
-                posPrev = getStableExitPoint(char.name, nextIndex); // 进场
-            }
-
+            if (posPrev && !posNext) if (zoneIdNext !== 'DISAPPEAR') posNext = getStableExitPoint(char.name, prevIndex);
+            if (!posPrev && posNext) posPrev = getStableExitPoint(char.name, nextIndex);
             if (!posPrev || !posNext) return;
 
-            // 3. 插值与延迟计算 [核心修改区域]
             let finalX, finalY;
-
             if (zoneIdPrev === zoneIdNext && posPrev) {
-                // 情况 A: 在同一个房间停留/移动
-                // (getZoneDynamicPosition 内部已经处理了延迟，这里直接用)
-                finalX = posPrev.x;
-                finalY = posPrev.y;
+                finalX = posPrev.x; finalY = posPrev.y;
             } else {
-                // 情况 B: 跨房间移动 (从 A 走到 B)
-
-                // [修改点] 获取该角色的个人延迟
                 const delay = getPersonalDelay(char.name);
-
-                // [修改点] 计算修正后的进度
-                // 逻辑：如果当前时间还没超过 delay，进度保持 0 (还没出发)
-                // 超过 delay 后，需要稍微加速，以便在整点前赶到终点
-                let adjustedRatio = (ratio - delay) / (1.0 - delay);
-
-                // 限制在 0 ~ 1 之间
-                adjustedRatio = Math.max(0, Math.min(1, adjustedRatio));
-
+                let adjustedRatio = Math.max(0, Math.min(1, (ratio - delay) / (1.0 - delay)));
                 finalX = posPrev.x + (posNext.x - posPrev.x) * adjustedRatio;
                 finalY = posPrev.y + (posNext.y - posPrev.y) * adjustedRatio;
             }
 
-            // 4. 叠加抖动 (仅静止房间)
             if (posPrev && posPrev.isStatic && zoneIdPrev === zoneIdNext) {
                 const offset = getStableOffset(char.name);
-                finalX += offset.x;
-                finalY += offset.y;
+                finalX += offset.x; finalY += offset.y;
             }
 
-            // 5. 绘制点
             const dot = document.createElement('div');
             dot.className = 'char-dot';
             dot.style.backgroundColor = char.color;
             dot.style.color = char.color;
-            dot.setAttribute('data-name', char.name);
             dot.style.left = finalX + '%';
             dot.style.top = finalY + '%';
+
+            // === [核心逻辑] 名字最终解析 ===
+            // 1. 获取生成器传来的名字 (可能是字符串 'zhangchen' 或对象 {cn:..., en:...})
+            let displayName = char.name;
+
+            // 2. 如果是对象 (说明 generator 成功解析了)，取当前语言
+            if (typeof displayName === 'object') {
+                const lang = localStorage.getItem('app_lang') || 'cn';
+                displayName = displayName[lang] || displayName['cn'] || '???';
+            }
+            // 3. 如果还是字符串 (说明是 ID, 如 'zhangchen')，尝试去 CharacterConfig 查表 (兜底策略)
+            else if (window.CharacterConfig && window.CharacterConfig[displayName]) {
+                displayName = window.CharacterConfig[displayName];
+            }
+
+            dot.setAttribute('data-name', displayName);
             mapLayer.appendChild(dot);
         });
     }
 
-    // === 播放控制 ===
     function formatTime(floatHour) {
         const h = Math.floor(floatHour);
         const m = Math.floor((floatHour - h) * 60);
-        const hStr = h < 10 ? '0'+h : h;
-        const mStr = m < 10 ? '0'+m : m;
-        return `${hStr}:${mStr}`;
+        return `${h < 10 ? '0'+h : h}:${m < 10 ? '0'+m : m}`;
     }
 
     function updateTimeFromSlider(val) {
@@ -519,18 +613,11 @@
     }
 
     function togglePlay() {
+        if (isPlaying) stopPlay(); else startPlay();
         const btn = document.getElementById('playBtn');
-        if (isPlaying) {
-            stopPlay();
-            btn.textContent = "▶ PLAY";
-            btn.style.background = "black";
-            btn.style.color = "var(--cctv-green)";
-        } else {
-            startPlay();
-            btn.textContent = "❚❚ STOP";
-            btn.style.background = "var(--cctv-green)";
-            btn.style.color = "black";
-        }
+        btn.textContent = isPlaying ? "❚❚ STOP" : "▶ PLAY";
+        btn.style.background = isPlaying ? "var(--cctv-green)" : "black";
+        btn.style.color = isPlaying ? "black" : "var(--cctv-green)";
     }
 
     function startPlay() {
@@ -539,33 +626,21 @@
         lastTimestamp = performance.now();
         animationFrameId = requestAnimationFrame(gameLoop);
     }
-
     function stopPlay() {
         isPlaying = false;
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
     }
-
     function gameLoop(timestamp) {
         if (!isPlaying) return;
         const deltaTime = timestamp - lastTimestamp;
         lastTimestamp = timestamp;
-
-        const hourIncrement = deltaTime / DURATION_PER_HOUR;
-        currentTime += hourIncrement;
-
-        const maxHour = MonitorConfig.settings.endHour;
-        const minHour = MonitorConfig.settings.startHour;
-
-        // 循环播放
-        if (currentTime > maxHour) currentTime = minHour;
-
+        currentTime += deltaTime / DURATION_PER_HOUR;
+        if (currentTime > MonitorConfig.settings.endHour) currentTime = MonitorConfig.settings.startHour;
         document.getElementById('timeSlider').value = currentTime;
         document.getElementById('displayTime').textContent = formatTime(currentTime);
         updateScene(currentTime);
-
         animationFrameId = requestAnimationFrame(gameLoop);
     }
-
     function logout() {
         sessionStorage.removeItem('monitor_user');
         window.location.href = 'monitor-login.html';
@@ -573,26 +648,8 @@
 
     (async function(){
         const lang = localStorage.getItem('app_lang') || 'cn';
-
-        // 【修复】防止竞态与双重加载
-        if (!window.MonitorConfig) {
-            // 如果配置未加载，手动加载
-            await window.reloadConfig(lang);
-        } else {
-            // 如果配置已存在，直接初始化系统
-            // 注意：MonitorGenerator 可能已经被 reloadConfig 运行过了，
-            // 但为了保险起见，可以在 initSystem 开头或者这里再检查一次 generator 状态
-            // 由于 reloadConfig 内部包含了 Generator.run 和 initSystem，
-            // 这里我们手动模拟这个过程：
-
-            // 确保生成器运行过（如果 MonitorConfig 是纯静态数据，这里需要再次 hydrate）
-            // 通常 reloadConfig 负责了 hydrate，所以如果 !MonitorConfig，reloadConfig 会做完一切。
-            // 但如果 MonitorConfig 已经存在（被 lang-switch 加载），lang-switch 调用的也是 reloadConfig。
-            // 所以理论上只要 MonitorConfig 存在，initSystem 就可以直接跑。
-
-            // 简单起见，直接调用初始化：
-            initSystem();
-        }
+        if (!window.MonitorConfig) await window.reloadConfig(lang);
+        else initSystem();
     })();
 </script>
 </body>

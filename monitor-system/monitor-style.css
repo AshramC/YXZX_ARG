@@ -321,6 +321,168 @@ body.lang-en div.lang-en-only {
     transform: translateY(-50%) scale(0.95);
 }
 
+/* =========================================
+   新功能：推理与系统通知 (Deduction & Notification)
+   ========================================= */
+
+/* 1. 触发按钮容器 (悬浮在右上角) */
+#deduce-btn-container {
+    position: absolute;
+    top: 30px;          /* 改为顶部 */
+    right: 30px;        /* 保持靠右 */
+    z-index: 1000;      /* 确保在地图之上 */
+}
+
+#btn-deduce-trigger {
+    background-color: rgba(0, 0, 0, 0.8);
+    border: 1px solid var(--cctv-green);
+    color: var(--cctv-green);
+    box-shadow: 0 0 5px var(--cctv-green);
+
+    /* 添加呼吸动画 */
+    animation: cctv-breathe 2s infinite ease-in-out;
+
+    /* 增加一点内边距让它更显眼 */
+    padding: 12px 24px !important;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+/* 3. 悬停状态：停止呼吸，高亮显示 */
+#btn-deduce-trigger:hover {
+    background-color: var(--cctv-green);
+    color: #000;
+    box-shadow: 0 0 20px var(--cctv-green);
+    animation: none; /* 鼠标放上去时停止抖动，方便点击 */
+    transform: scale(1.05);
+}
+
+/* 4. 定义呼吸动画关键帧 */
+@keyframes cctv-breathe {
+    0% {
+        box-shadow: 0 0 5px rgba(0, 255, 65, 0.4);
+        transform: scale(1);
+        border-color: rgba(0, 255, 65, 0.5);
+    }
+    50% {
+        /* 发光增强 & 轻微放大 */
+        box-shadow: 0 0 25px rgba(0, 255, 65, 0.8), inset 0 0 10px rgba(0, 255, 65, 0.2);
+        transform: scale(1.02);
+        border-color: rgba(0, 255, 65, 1);
+        text-shadow: 0 0 8px var(--cctv-green);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(0, 255, 65, 0.4);
+        transform: scale(1);
+        border-color: rgba(0, 255, 65, 0.5);
+    }
+}
+
+/* 2. 推理弹窗 (Modal) */
+.modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 2000;
+    backdrop-filter: blur(2px);
+}
+
+.modal-box {
+    background: var(--cctv-panel);
+    border: 1px solid var(--cctv-green);
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.1);
+    padding: 2rem;
+    width: 90%;
+    max-width: 550px;
+    text-align: center;
+}
+
+.modal-box h3 {
+    color: var(--cctv-green);
+    margin-bottom: 1.5rem;
+    border-bottom: 1px dashed #333;
+    padding-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+/* 选项列表 */
+.options-list { display: flex; flex-direction: column; gap: 0.8rem; }
+
+.quiz-btn {
+    background: black;
+    border: 1px solid #444;
+    color: #888;
+    padding: 1rem;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: var(--font-mono);
+}
+.quiz-btn:hover {
+    border-color: var(--cctv-green);
+    color: var(--cctv-green);
+    background: rgba(0, 255, 65, 0.05);
+}
+
+/* 3. 系统全屏通知 (Notification Screen) */
+.sys-screen {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: #000;
+    z-index: 3000;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 2rem;
+}
+
+.sys-content {
+    width: 100%; max-width: 700px;
+    border: 2px solid var(--cctv-green);
+    padding: 2rem;
+    background: #0a0a0a;
+    box-shadow: 0 0 30px rgba(0, 255, 65, 0.15);
+}
+
+.sys-header {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    border-bottom: 2px solid #333;
+    padding-bottom: 1rem; margin-bottom: 2rem;
+}
+.sys-title { font-size: 1.5rem; color: var(--cctv-green); font-weight: bold; }
+
+.msg-meta {
+    text-align: left;
+    margin-bottom: 2rem;
+    background: #111;
+    padding: 1.5rem;
+    border-left: 4px solid var(--cctv-green);
+}
+
+.msg-row { margin-bottom: 0.8rem; font-size: 1rem; color: #ccc; }
+.msg-label { color: #666; display: inline-block; width: 100px; }
+.msg-val { color: var(--cctv-text); }
+.msg-val.hacker { color: var(--cctv-red); text-shadow: 0 0 5px red; }
+.msg-val.user { color: var(--cctv-green); font-weight: bold; }
+
+.instruction-text {
+    color: #888;
+    margin-bottom: 2rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    border-top: 1px dashed #333;
+    padding-top: 1rem;
+}
+
+/* 聊天终端高亮样式 */
+.highlight-terminal {
+    color: var(--cctv-green);
+    border: 1px solid var(--cctv-green);
+    padding: 2px 6px;
+    margin: 0 4px;
+    font-weight: bold;
+    background: rgba(0, 255, 65, 0.1);
+    box-shadow: 0 0 5px rgba(0, 255, 65, 0.3);
+    display: inline-block;
+}
+
 /* 修复 input 在有图标时的样式，确保光标不乱跑 */
 .input-box {
     /* 维持原有的 input-box 样式，这里只是为了确保 display 正确 */
