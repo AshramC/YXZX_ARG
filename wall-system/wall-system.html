@@ -15,6 +15,7 @@
     <span class="lang-en-only">Campus Wall</span>
     <span id="termInfo" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 400; margin-left: 10px;"></span>
   </div>
+
   <div style="display: flex; align-items: center;">
 
     <div class="lang-switch-wrapper">
@@ -134,24 +135,74 @@
 <script src="wall-app.js"></script>
 
 <script>
+  // ========== 1. 核心状态管理 ==========
+
+  const STORAGE_SPECIAL_MODE = 'WALL_SPECIAL_MODE';
+
+  /**
+   * 检查是否进入特殊模式
+   * 逻辑：URL参数 ?reveal=true 强制开启，否则读取 LocalStorage
+   * (开启后没有 UI 提示，完全隐蔽)
+   */
+  function checkSpecialMode() {
+    const urlParams = new URLSearchParams(window.location.search);
+
+    // 如果 URL 包含参数，强制激活并持久化
+    if (urlParams.get('reveal') === 'true') {
+      localStorage.setItem(STORAGE_SPECIAL_MODE, 'true');
+      // 清除 URL 参数，保持地址栏整洁
+      window.history.replaceState({}, document.title, window.location.pathname);
+      return true;
+    }
+
+    // 否则读取本地存储
+    return localStorage.getItem(STORAGE_SPECIAL_MODE) === 'true';
+  }
+
+  window.addEventListener('storage', (event) => {
+      // 监听特殊模式 Key 的变化
+      if (event.key === 'WALL_SPECIAL_MODE') {
+          // 无论当前窗口是显示还是隐藏，只要 Key 变了，立即自我刷新
+          if (!event.newValue || event.newValue === 'false') {
+              window.location.reload();
+          }
+      }
+  });
+
+  // ========== 2. 配置加载逻辑 ==========
+
+  /**
+   * 加载配置并初始化应用
+   * 此函数由 lang-switch.js 调用，或在页面初始化时调用
+   */
   window.reloadConfig = async function(lang) {
     try {
+      const isSpecial = checkSpecialMode();
+
+      // 动态决定文件名，但 UI 层面无感知
+      const configBaseName = isSpecial ? 'wall-special-config' : 'wall-config';
+
+      console.log(`[System] Loading Content: ${isSpecial ? 'Override' : 'Default'} (${lang})`);
+
+      // 核心加载：统一读取 WALL_CONFIG
       await UnifiedLoader.load(
-              'wall-config',
-              'WALL_CONFIG',
-              'ENCRYPTED_WALL_CONFIG',
+              configBaseName,          // 文件名不同
+              'WALL_CONFIG',           // 变量名相同
+              'ENCRYPTED_WALL_CONFIG', // 加密变量名相同
               lang
       );
 
-      // 重新初始化 Wall App (调用 wall-app.js 里的函数)
+      // 配置加载完毕，启动应用逻辑
       if (typeof initializeWallApp === 'function') {
         initializeWallApp();
       }
+
     } catch(e) {
-      console.error("Wall Load Failed", e);
+      console.error("Wall Config Load Failed", e);
     }
   };
 
+  // ========== 3. 立即启动 ==========
   (async function() {
     const currentLang = localStorage.getItem('app_lang') || 'cn';
     await window.reloadConfig(currentLang);

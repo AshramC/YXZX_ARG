@@ -6,16 +6,17 @@
  */
 
 class GameEngine {
-    constructor() {
+    constructor(forceMapId = null) {
         // === 核心状态 ===
         this.levelLibrary = {};
         this.currentLevelId = null;
         this.levelData = null;
         this.isFirstLoad = true;
+        this.forceMapId = forceMapId; // URL参数指定的地图ID
 
         this.player = {
             nodeId: null, x: 0, y: 0,
-            state: 'IDLE', // IDLE, MOVING, HACKING
+            state: 'IDLE', // IDLE, MOVING, HACKING, SEARCHING
             targetNode: null,
             currentLink: null,
             moveStartTime: 0, moveDuration: 0
@@ -27,6 +28,11 @@ class GameEngine {
         // === Hack 机制状态 ===
         this.linkProgress = {};
         this.activeLink = null;
+
+        // === Search 机制状态 ===
+        this.searchProgress = {};
+        this.activeSearchNode = null;
+        this.searchedNodes = new Set(); // 已搜索过的节点
 
         // === 镜头与迷雾 ===
         this.camera = {
@@ -90,6 +96,7 @@ class GameEngine {
 
     refreshUiText(lang) {
         this.updatePhoneOptions();
+        this.updateLevelUI();
     }
 
     // === 初始化入口 ===
@@ -97,8 +104,12 @@ class GameEngine {
         if (window.LevelConfig) {
             this.levelLibrary = window.LevelConfig;
 
-            // 尝试从存档恢复（包含锁定状态检查）
-            if (!this.initFromSave()) {
+            // 优先级: forceMapId > 存档 > 默认第一关
+            if (this.forceMapId && this.levelLibrary[this.forceMapId]) {
+                // URL参数指定的地图，跳过存档逻辑
+                console.log(`[Engine] 🎯 使URL参数加载地图: ${this.forceMapId}`);
+                this.loadLevel(this.forceMapId);
+            } else if (!this.initFromSave()) {
                 // 无存档或正常读档失败，从第一关开始
                 const firstLevelId = Object.keys(this.levelLibrary)[0];
                 if (firstLevelId) {
@@ -136,53 +147,73 @@ class GameEngine {
     }
 
     // =========================================================================
-    // ★★★ 核心修改：存档初始化与锁定/解锁逻辑 ★★★
+    // ★★★ 修复版：带死档搜寻功能的 initFromSave ★★★
     // =========================================================================
     initFromSave() {
-        if (!window.SaveManager || !window.SaveManager.hasSave()) return false;
+        console.log("🔍 [Debug] 开始执行 initFromSave...");
 
-        const save = window.SaveManager.currentSave;
+        // 1. 先尝试获取当前的默认存档
+        let save = window.SaveManager.currentSave;
 
-        // 1. 检测锁定状态与解锁条件
-        if (save.saveType === 'lockdown' || save.levelId === 'LOCKED_STATE') {
+        // 【核心修复】：如果默认存档为空，尝试去读取 "LOCKED_STATE" 的专用存档
+        if (!save) {
+            console.log("⚠️ [Debug] 主存档为空，尝试搜寻锁定(死档)记录...");
 
-            // 定义解锁条件
-            const UNLOCK_DATE = new Date('2025-12-12T00:00:00'); // 预设解锁日期
-            const NOW = new Date();
-            const NEXT_LEVEL_ID = 'level_04_awakening'; // 未来的新关卡ID
+            // 临时切换 SaveManager 的目标 ID 去读那个特殊的 key
+            window.SaveManager.setMapId('LOCKED_STATE');
 
-            // 检查：是否到了时间 且 是否有新关卡配置存在
-            const hasNewContent = this.levelLibrary && this.levelLibrary[NEXT_LEVEL_ID];
-
-            if (NOW >= UNLOCK_DATE && hasNewContent) {
-                console.log('[Engine] 🔓 时间已到，解除封印！');
-
-                // 自动迁移存档：复活到新关卡
-                const nextLevel = this.levelLibrary[NEXT_LEVEL_ID];
-                const startNode = nextLevel.elements.find(e => e.type === 'node');
-
-                // 覆盖死档为正常存档
-                window.SaveManager.save({
-                    levelId: NEXT_LEVEL_ID,
-                    nodeId: startNode ? startNode.id : 'n_start',
-                    inventory: save.inventory,
-                    saveType: 'manual'
-                });
-
-                this.addLog("SYSTEM: SECURE CHANNEL RE-ESTABLISHED.", "system");
-
-                // 加载新关卡
-                setTimeout(() => this.loadLevel(NEXT_LEVEL_ID), 100);
-                return true;
+            if (window.SaveManager.hasSave()) {
+                console.log("✅ [Debug] 找到了锁定存档！");
+                save = window.SaveManager.currentSave;
+            } else {
+                // 如果也没找到，把 ID 切回来，避免影响后续逻辑
+                console.log("❌ [Debug] 未找到锁定存档，确实是新游戏。");
+                window.SaveManager.setMapId(null);
             }
-
-            // 如果未满足条件，执行锁定
-            console.log('[Engine] 🔒 保持锁定状态');
-            setTimeout(() => this.showFinalLockScreen(), 100);
-            return true; // 阻止加载默认关卡
         }
 
-        // 2. 正常读档逻辑
+        // 2. 如果经过上面的搜寻还是没有存档，则返回 false (开始新游戏)
+        if (!save) {
+            console.log("❌ [Debug] 最终确认无存档，进入新游戏流程");
+            return false;
+        }
+
+        console.log("📂 [Debug] 当前存档完整数据:", JSON.parse(JSON.stringify(save)));
+
+        // 3. 检测锁定状态与解锁条件
+        if (save.saveType === 'lockdown' || save.levelId === 'LOCKED_STATE') {
+            console.log("🔒 [Debug] 成功进入锁定状态检查逻辑");
+
+            // --- 修改日期逻辑 (确保你能通过调试) ---
+            // 建议：为了测试，先写死为 true，或者把日期改成 2020 年
+            const UNLOCK_DATE = new Date('2020-01-01T00:00:00');
+            const NOW = new Date();
+
+            console.log(`🕒 [Debug] 目标时间: ${UNLOCK_DATE.toLocaleString()}`);
+            console.log(`⚖️ [Debug] 时间判定结果: ${NOW >= UNLOCK_DATE}`);
+
+            if (NOW >= UNLOCK_DATE) {
+                console.log('✅ [Debug] 条件满足！准备显示任务简报');
+
+                setTimeout(() => {
+                    if (typeof this.showMissionStartScreen === 'function') {
+                        this.showMissionStartScreen();
+                    } else {
+                        console.error('💥 [Debug] 找不到 showMissionStartScreen 方法！');
+                    }
+                }, 500);
+
+                return true;
+            } else {
+                console.log('⛔ [Debug] 时间未到，维持锁定状态');
+            }
+
+            console.log('[Engine] 🔒 执行 showFinalLockScreen');
+            setTimeout(() => this.showFinalLockScreen(), 100);
+            return true;
+        }
+
+        // 4. 正常读档逻辑 (处理普通关卡)
         if (!this.levelLibrary[save.levelId]) {
             console.warn('[Engine] 存档关卡不存在，从头开始');
             window.SaveManager.clear();
@@ -218,6 +249,11 @@ class GameEngine {
             return;
         }
 
+        // 设置 SaveManager 的当前地图ID（用于独立存档逻辑）
+        if (window.SaveManager && window.SaveManager.setMapId) {
+            window.SaveManager.setMapId(levelId);
+        }
+
         this.cleanupLevel();
 
         this.currentLevelId = levelId;
@@ -243,6 +279,7 @@ class GameEngine {
         this.camera.panX = 0;
         this.camera.panY = 0;
 
+        this.updateLevelUI();
         this.addLog(`Loaded: ${this.levelData.name}`, 'system');
     }
 
@@ -347,6 +384,109 @@ class GameEngine {
         this.noiseRing = null;
         this.player.targetNode = null;
         this.player.currentLink = null;
+
+        // 重置搜索状态
+        this.searchProgress = {};
+        this.activeSearchNode = null;
+        this.searchedNodes = new Set();
+    }
+
+    // ... 在 GameEngine 类内部新增此方法 ...
+
+    showMissionStartScreen() {
+        // 1. 停止背景音乐，播放一点音效（如果有的话）
+        this.stopBgm();
+
+        // 2. 创建覆盖层 DOM
+        const overlay = document.createElement('div');
+        overlay.id = 'missionStartScreen';
+
+        // 使用内联样式确保风格统一，无需修改 CSS 文件
+        Object.assign(overlay.style, {
+            position: 'fixed', top: '0', left: '0', width: '100%', height: '100%',
+            backgroundColor: '#000', zIndex: '10000',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            fontFamily: "'Courier New', monospace", color: '#fff',
+            padding: '20px', boxSizing: 'border-box',
+            opacity: '0', transition: 'opacity 1s ease-in'
+        });
+
+        // 3. 构建内容 HTML
+        // 使用 text-shadow 制造发光效果，红色强调“张晨”和“复仇”
+        overlay.innerHTML = `
+            <div style="border: 2px solid #ef4444; padding: 40px; max-width: 600px; width: 100%; background: rgba(20, 0, 0, 0.9); box-shadow: 0 0 30px rgba(239, 68, 68, 0.2);">
+                <h1 style="color: #ef4444; margin: 0 0 20px 0; font-size: 2em; letter-spacing: 2px; text-align: center; text-shadow: 0 0 10px #ef4444;" class="glitch-text">
+                    ⚠ MISSION UPDATE ⚠
+                </h1>
+                
+                <div style="width: 100%; height: 2px; background: #ef4444; margin-bottom: 30px;"></div>
+                
+                <p style="font-size: 1.2em; line-height: 1.8; margin-bottom: 40px; text-align: left;">
+                    为了 <span style="color: #ef4444; font-weight: bold; text-decoration: underline;">张晨</span> 的复仇计划，<br>
+                    你需要在最后几天的时间内尽可能的做点什么。
+                </p>
+
+                <p style="font-size: 1.2em; line-height: 1.8; margin-bottom: 40px; text-align: left; opacity: 0.8;">
+                    一切准备就绪。<br>
+                    时间将会从 <span style="color: #4ade80">[12.06]</span> 开始，抓紧时间！ 。
+                </p>
+                
+                <div style="text-align: center;">
+                    <button id="startCampusBtn" style="
+                        background: transparent; border: 1px solid #ef4444; color: #ef4444;
+                        padding: 15px 40px; font-size: 1.2em; font-family: inherit; cursor: pointer;
+                        transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px;
+                    ">
+                        [ 点击进入校园生活 ]
+                    </button>
+                    <div style="margin-top: 10px; font-size: 0.8em; color: #666;">> SYSTEM_MODE: SWITCHING...</div>
+                </div>
+            </div>
+            
+            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; 
+                background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+                background-size: 100% 2px, 3px 100%; z-index: -1;">
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        // 4. 绑定按钮事件
+        const btn = document.getElementById('startCampusBtn');
+
+        // 鼠标悬停效果
+        btn.onmouseenter = () => {
+            btn.style.background = '#ef4444';
+            btn.style.color = '#000';
+            btn.style.boxShadow = '0 0 15px #ef4444';
+        };
+        btn.onmouseleave = () => {
+            btn.style.background = 'transparent';
+            btn.style.color = '#ef4444';
+            btn.style.boxShadow = 'none';
+        };
+
+        // 点击跳转逻辑
+        btn.onclick = () => {
+            // 视觉反馈
+            btn.innerHTML = "INITIALIZING...";
+            btn.disabled = true;
+
+            // 设置 LocalStorage 标记
+            localStorage.setItem('SYSTEM_MODE', 'campus');
+
+            // 播放简单的故障特效后跳转
+            overlay.style.backgroundColor = '#fff'; // 闪白
+            setTimeout(() => {
+                // 执行跳转到上一级目录的 campus-system
+                window.location.replace('./../campus-system/campus-app.html');
+            }, 200);
+        };
+
+        // 5. 显示动画 (Fade In)
+        requestAnimationFrame(() => {
+            overlay.style.opacity = '1';
+        });
     }
 
     handleIdleThought(node) {
@@ -395,6 +535,36 @@ class GameEngine {
         if (this.domThoughtBubble) {
             this.domThoughtBubble.classList.remove('visible');
             this.domThoughtBubble.classList.add('hidden');
+        }
+    }
+
+    // [新增] 更新关卡标题和默认对话人
+// [新增] 更新关卡标题和默认对话人
+    updateLevelUI() {
+        if (!this.levelData) return;
+
+        // 1. 获取当前语言
+        const lang = localStorage.getItem('app_lang') || 'cn';
+
+        // 辅助函数：处理可能是字符串也可能是对象的多语言字段
+        const getText = (data) => {
+            if (!data) return null;
+            if (typeof data === 'string') return data;
+            return data[lang] || data['cn'] || data['en'];
+        };
+
+        // 2. 更新左上角地点
+        const locationEl = document.getElementById('hacker-location');
+        if (locationEl && this.levelData.title) {
+            const text = getText(this.levelData.title);
+            if (text) locationEl.innerText = text;
+        }
+
+        // 3. 更新右下角默认对话人
+        const speakerEl = document.getElementById('hacker-dialog-speaker');
+        if (speakerEl && this.levelData.speaker) {
+            const text = getText(this.levelData.speaker);
+            if (text) speakerEl.innerText = text;
         }
     }
 
@@ -500,6 +670,7 @@ class GameEngine {
         this.updateGuards(dt);
         this.updatePlayer(dt);
         this.updateHacking(dt);
+        this.updateSearching(dt);
         this.checkCollisions();
         this.updateVisualFX();
 
@@ -559,6 +730,220 @@ class GameEngine {
 
         this.addLog(this.t('hack_success'), 'system');
         this.executeMove(link);
+    }
+
+    // =========================================================================
+    // ★★★ 搜索节点机制 ★★★
+    // =========================================================================
+
+    /**
+     * 显示可搜索节点的操作选项（搜索按钮 + 移动按钮）
+     */
+    showSearchableOptions(node) {
+        this.domActions.innerHTML = '';
+
+        const searchConfig = node.search;
+        if (!searchConfig) {
+            // 没有搜索配置，只显示移动选项
+            this.updatePhoneOptions();
+            return;
+        }
+
+        const isSearched = this.searchedNodes.has(node.id);
+        const currentProgress = this.searchProgress[node.id] || 0;
+
+        // 创建搜索按钮
+        const searchBtn = document.createElement('button');
+        searchBtn.className = 'btn-opt btn-search';
+        searchBtn.dataset.nodeId = node.id;
+
+        if (isSearched && searchConfig.oneTime) {
+            // 已搜索过且是一次性的
+            searchBtn.innerHTML = `<span><span class="btn-icon">✓</span> ${this.t('search_done') || '已搜索'}</span><span class="btn-cost">-</span>`;
+            searchBtn.disabled = true;
+            searchBtn.classList.add('searched');
+        } else if (this.player.state === 'SEARCHING' && this.activeSearchNode?.id === node.id) {
+            // 正在搜索中
+            const pct = currentProgress.toFixed(1);
+            const statusText = window.HackerConfig?.search_progress || '搜索中';
+
+            searchBtn.innerHTML = `<span style="color:#a855f7">🔍 ${statusText}...</span>
+                           <div class="progress-bar" style="width:${pct}%; position:absolute; bottom:0; left:0; height:4px; background:#a855f7; transition:width 0.1s;"></div>`;
+            searchBtn.classList.add('searching-active');
+            searchBtn.onclick = () => this.toggleSearch(node);
+        } else {
+            // 可以搜索
+            const btnText = searchConfig.btnText || this.t('btn_search') || '搜索';
+            const costText = `${searchConfig.cost || 3}s`;
+            searchBtn.innerHTML = `<span><span class="btn-icon">🔍</span> ${btnText}</span><span class="btn-cost">${costText}</span>`;
+            searchBtn.onclick = () => this.toggleSearch(node);
+        }
+
+        this.domActions.appendChild(searchBtn);
+
+        // 添加移动选项
+        this.appendMoveOptions();
+    }
+
+    /**
+     * 在不清除搜索按钮的情况下，添加移动选项
+     */
+    appendMoveOptions() {
+        const validLinks = this.levelData.links.filter(l => l.from === this.player.nodeId);
+        if (validLinks.length === 0) return;
+
+        validLinks.forEach(link => {
+            const btn = this.createLinkButton(link);
+            this.domActions.appendChild(btn);
+        });
+    }
+
+    /**
+     * 创建路径按钮（从 updatePhoneOptions 抽取）
+     */
+    createLinkButton(link) {
+        const btn = document.createElement('button');
+        btn.dataset.lid = link.id;
+
+        let btnClass = link.isHidden ? 'btn-opt btn-sneak' : 'btn-opt btn-run';
+        let icon = link.isHidden ? '🔵' : '🏃';
+        let isLocked = false;
+        let statusText = `${link.cost}s`;
+
+        const currentProgress = this.linkProgress[link.id] || 0;
+
+        if (link.interaction === 'key') {
+            if (this.inventory.includes(link.paramId)) { icon = '🔓'; }
+            else { isLocked = true; icon = '🔒'; btnClass = 'btn-opt btn-locked'; statusText = this.t('btn_need_item'); }
+        } else if (link.interaction === 'locked') {
+            isLocked = true; icon = '🚫'; btnClass = 'btn-opt btn-locked'; statusText = this.t('btn_locked');
+        } else if (link.interaction === 'hack') {
+            icon = '⚡'; btnClass = 'btn-opt';
+            if (currentProgress > 0) statusText = `${this.t('btn_progress')}: ${currentProgress.toFixed(0)}%`;
+            else statusText = this.t('btn_need_hack');
+        }
+
+        btn.className = btnClass;
+        const displayText = link.btnText || this.t('btn_move');
+        btn.innerHTML = `<span><span class="btn-icon">${icon}</span> ${displayText}</span><span class="btn-cost">${statusText}</span>`;
+
+        if (currentProgress > 0 && currentProgress < 100 && link.interaction === 'hack') {
+            btn.style.background = `linear-gradient(90deg, #1e293b ${currentProgress}%, #eee ${currentProgress}%)`;
+            btn.style.color = currentProgress > 50 ? '#fff' : '#000';
+        }
+
+        if (isLocked) {
+            btn.disabled = true;
+        } else {
+            if (link.interaction === 'hack') {
+                btn.onclick = () => this.toggleHack(link);
+            } else {
+                btn.onclick = () => this.executeMove(link);
+            }
+
+            btn.onmouseenter = () => {
+                this.highlightLink(link);
+                if (!link.isHidden || link.interaction === 'hack') this.showNoisePreview();
+            };
+            btn.onmouseleave = () => {
+                this.clearLinkHighlight();
+                if (this.player.state !== 'HACKING' && this.player.state !== 'SEARCHING') this.hideNoisePreview();
+            };
+        }
+        return btn;
+    }
+
+    /**
+     * 开始/取消搜索
+     */
+    toggleSearch(node) {
+        if (this.player.state === 'SEARCHING') {
+            // 取消搜索
+            this.player.state = 'IDLE';
+            this.activeSearchNode = null;
+            this.hideNoisePreview();
+            this.addLog(window.HackerConfig?.search_abort || '搜索中断', 'system');
+            this.showSearchableOptions(node);
+            return;
+        }
+
+        // 开始搜索
+        this.player.state = 'SEARCHING';
+        this.activeSearchNode = node;
+
+        if (node.search?.noise) {
+            this.showNoisePreview();
+        }
+
+        this.addLog(window.HackerConfig?.search_start || '开始搜索...', 'system');
+    }
+
+    /**
+     * 更新搜索进度
+     */
+    updateSearching(dt) {
+        if (this.player.state !== 'SEARCHING' || !this.activeSearchNode) return;
+
+        const node = this.activeSearchNode;
+        const nodeId = node.id;
+        const searchConfig = node.search;
+
+        if (this.searchProgress[nodeId] === undefined) this.searchProgress[nodeId] = 0;
+
+        const speed = 100 / (searchConfig.cost || 3);
+        this.searchProgress[nodeId] += speed * dt;
+
+        // 更新UI
+        const btn = this.domActions.querySelector(`button[data-node-id="${nodeId}"]`);
+        if (btn) {
+            const pct = Math.min(100, this.searchProgress[nodeId]).toFixed(1);
+            const statusText = window.HackerConfig?.search_progress || '搜索中';
+
+            btn.innerHTML = `<span style="color:#a855f7">🔍 ${statusText}...</span>
+                     <div class="progress-bar" style="width:${pct}%; position:absolute; bottom:0; left:0; height:4px; background:#a855f7; transition:width 0.1s;"></div>`;
+            btn.classList.add('searching-active');
+        }
+
+        if (this.searchProgress[nodeId] >= 100) {
+            this.finishSearch(node);
+        }
+    }
+
+    /**
+     * 完成搜索
+     */
+    finishSearch(node) {
+        this.player.state = 'IDLE';
+        this.searchProgress[node.id] = 100;
+        this.activeSearchNode = null;
+        this.hideNoisePreview();
+
+        const searchConfig = node.search;
+
+        // 标记为已搜索
+        if (searchConfig.oneTime) {
+            this.searchedNodes.add(node.id);
+            // 更新节点视觉样式
+            const nodeDom = this.domEntities.querySelector(`.node[data-id="${node.id}"]`);
+            if (nodeDom) {
+                nodeDom.classList.add('searched');
+            }
+        }
+
+        // 处理战利品
+        if (searchConfig.lootId && !this.inventory.includes(searchConfig.lootId)) {
+            this.inventory.push(searchConfig.lootId);
+            this.updateInventoryUi();
+            const msg = searchConfig.successMsg || `${this.t('item_get')} [${searchConfig.lootId}]`;
+            this.addLog(msg, 'system');
+        } else if (searchConfig.successMsg) {
+            this.addLog(searchConfig.successMsg, 'system');
+        } else {
+            this.addLog(window.HackerConfig?.search_empty || '什么也没找到', 'system');
+        }
+
+        // 刷新UI
+        this.showSearchableOptions(node);
     }
 
     handleMouseDown(e) {
@@ -637,7 +1022,8 @@ class GameEngine {
         }
 
         if ((this.player.state === 'MOVING' && this.player.currentLink && !this.player.currentLink.isHidden) ||
-            (this.player.state === 'HACKING')) {
+            (this.player.state === 'HACKING') ||
+            (this.player.state === 'SEARCHING' && this.activeSearchNode?.search?.noise)) {
             for (let g of this.guards) {
                 const dx = px - g.x; const dy = py - g.y;
                 const dist = Math.sqrt(dx*dx + dy*dy);
@@ -745,9 +1131,70 @@ class GameEngine {
             glitch.style.filter = "contrast(200%) hue-rotate(90deg)";
         }
 
-        setTimeout(() => {
-            this.playSignalLostTransition();
-        }, 1500);
+        if (this.currentLevelId === 'level_dorm_infiltration') {
+            setTimeout(() => {
+                this.showMissionFailedModal(reason, code);
+            }, 1000); // 稍微停顿一下让玩家看清自己被抓了
+        }
+        // 否则走原有的“开除结局”流程 (Level 1)
+        else {
+            setTimeout(() => {
+                this.playSignalLostTransition();
+            }, 1500);
+        }
+    }
+
+    // 在 GameEngine 类中添加此新方法
+    showMissionFailedModal(reason, code) {
+        // 1. 停止抖动和故障效果
+        document.querySelector('.monitor-wrapper').classList.remove('shaking');
+        const glitch = document.getElementById('glitchLayer');
+        if (glitch) glitch.style.opacity = 0;
+
+        // 2. 准备弹窗内容
+        if (this.domTitle && this.domMsg && this.domModal) {
+            // 设置标题颜色为红色，表示警告
+            this.domTitle.innerText = "⚠ MISSION FAILED ⚠";
+            this.domTitle.style.color = "#ef4444";
+
+            // 构建内容
+            const failReason = reason || "CONNECTION LOST";
+            const failCode = code || "ERR_DETECTED";
+
+            this.domMsg.innerHTML = `
+                <div style="text-align:center; margin-bottom: 20px;">
+                    <div style="font-size: 1.2em; margin-bottom: 5px;">${failReason}</div>
+                    <div style="font-family: monospace; color: #666;">CODE: ${failCode}</div>
+                </div>
+                
+                <button id="quickRetryBtn" class="btn-opt" style="width:100%; justify-content:center; background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444;">
+                    <span>↺ RESTART MISSION / 重新开始</span>
+                </button>
+            `;
+
+            // 3. 绑定重试事件
+            const btn = document.getElementById('quickRetryBtn');
+            // 注意：这里需要使用 setTimeout 确保 DOM 渲染后再绑定，或者直接绑定
+            // 由于上面是 innerHTML 赋值，直接 querySelector 即可
+            setTimeout(() => {
+                const retryBtn = document.querySelector('#quickRetryBtn');
+                if(retryBtn) {
+                    retryBtn.onclick = () => {
+                        this.domModal.classList.add('hidden');
+                        // 恢复标题颜色（为了不影响胜利弹窗）
+                        this.domTitle.style.color = "";
+                        // 重新加载当前关卡
+                        this.loadLevel(this.currentLevelId);
+                        // 恢复背景音乐
+                        this.startBgm();
+                    };
+                }
+            }, 0);
+
+            // 4. 显示弹窗
+            this.domModal.classList.remove('hidden');
+            this.domModal.classList.add('visible'); // 如果你有 visible 类的 CSS 动画
+        }
     }
 
     playSignalLostTransition() {
@@ -788,6 +1235,12 @@ class GameEngine {
 
         this.addLog(">> ACCESS GRANTED. SEQUENCE COMPLETE. <<", "system");
 
+        if (this.levelData.onComplete) {
+            // 如果配置存在，直接调用显示完成画面的逻辑
+            this.showCompletionScreen(this.levelData.onComplete);
+            return;
+        }
+
         if (this.levelData.nextLevel && this.levelLibrary[this.levelData.nextLevel]) {
             if (window.SaveManager) {
                 const nextLevelData = this.levelLibrary[this.levelData.nextLevel];
@@ -809,8 +1262,19 @@ class GameEngine {
             }, 1500);
 
         } else {
-            const winTitle = this.t('win_title') || "SYSTEM SECURED";
-            const winMsg = this.t('win_msg') || "All protocols executed successfully.";
+            const lang = localStorage.getItem('app_lang') || 'cn';
+            const getText = (data) => {
+                if (!data) return null;
+                if (typeof data === 'string') return data;
+                return data[lang] || data['cn'] || data['en'];
+            };
+
+            // 2. 优先尝试从 levelData 获取胜利文案
+            const levelTitle = getText(this.levelData.winTitle);
+            const levelMsg = getText(this.levelData.winMsg);
+
+            const winTitle = levelTitle || this.t('win_title') || "SYSTEM SECURED";
+            const winMsg = levelMsg || this.t('win_msg') || "All protocols executed successfully.";
 
             if (this.domTitle && this.domMsg && this.domModal) {
                 this.domTitle.innerText = winTitle;
@@ -943,7 +1407,15 @@ class GameEngine {
             return;
         }
 
-        // ★★★ 新增: minigame 节点处理 ★★★
+        // ★★★ 新增: searchable 节点处理 ★★★
+        if (node.nodeType === 'searchable') {
+            if (node.msg) this.addLog(node.msg, 'npc');
+            this.showSearchableOptions(node);
+            this.handleIdleThought(node);
+            return;
+        }
+
+        // ★★★ minigame 节点处理 ★★★
         if (node.nodeType === 'minigame') {
             if (window.SaveManager) {
                 window.SaveManager.save({
@@ -968,6 +1440,13 @@ class GameEngine {
     }
 
     executeMove(link) {
+        if (this.player.state === 'SEARCHING') {
+            this.player.state = 'IDLE';
+            this.activeSearchNode = null;
+            this.hideNoisePreview();
+            // 可以在这里加一行 log: System: Search aborted.
+        }
+
         if (this.player.state === 'HACKING') {
             this.player.state = 'IDLE';
             this.activeLink = null;
@@ -1279,7 +1758,56 @@ class GameEngine {
     async onMiniGameComplete(result) {
         if (!result || !result.success) return;
 
-        console.log('[剧情] 小游戏完成，开始演出...');
+        console.log('[剧情] 小游戏完成，检查完成行为配置...');
+
+        // 获取关卡的 onComplete 配置
+        const onComplete = this.levelData?.onComplete;
+        const completionType = onComplete?.type || 'lockdown'; // 默认为 lockdown 以保持向后兼容
+
+        if (completionType === 'normal') {
+            // 正常完成模式
+            await this.handleNormalComplete(onComplete);
+        } else {
+            // 锁定模式（原有逻辑）
+            await this.handleLockdownComplete(onComplete);
+        }
+    }
+
+    /**
+     * 处理正常完成模式
+     */
+    async handleNormalComplete(onComplete) {
+        console.log('[剧情] 执行正常完成流程...');
+
+        // 显示成功消息
+        const successMsg = onComplete?.successMsg || this.t('mission_complete') || '任务完成！';
+        await this.addLog(successMsg, 'system');
+
+        // 如果有下一关，跳转
+        if (this.levelData.nextLevel && this.levelLibrary[this.levelData.nextLevel]) {
+            if (window.SaveManager) {
+                const nextLevelData = this.levelLibrary[this.levelData.nextLevel];
+                const firstNode = nextLevelData.elements.find(e => e.type === 'node');
+                window.SaveManager.save({
+                    levelId: this.levelData.nextLevel,
+                    nodeId: firstNode?.id || null,
+                    inventory: this.inventory,
+                    saveType: 'level_complete',
+                    completedLevelId: this.currentLevelId
+                });
+            }
+            setTimeout(() => this.loadLevel(this.levelData.nextLevel), 1500);
+        } else {
+            // 没有下一关，显示完成屏幕
+            this.showCompletionScreen(onComplete);
+        }
+    }
+
+    /**
+     * 处理锁定完成模式（原有逻辑）
+     */
+    async handleLockdownComplete(onComplete) {
+        console.log('[剧情] 执行锁定完成流程...');
 
         // 1. 获取配置 (从 window.HackerConfig 读取当前语言)
         const config = window.HackerConfig || {};
@@ -1316,8 +1844,106 @@ class GameEngine {
             });
         }
 
-        // 6. 显示锁定页
-        this.showFinalLockScreen();
+        // 6. 显示锁定页（带可配置返回按钮）
+        this.showFinalLockScreen(onComplete);
+    }
+
+    /**
+     * 显示正常完成屏幕
+     */
+    showCompletionScreen(options = {}) {
+        this.stopBgm();
+        this.isGameOver = true;
+
+        const completionScreen = document.getElementById('completionScreen');
+        if (completionScreen) {
+            completionScreen.classList.remove('hidden');
+            void completionScreen.offsetWidth;
+            completionScreen.classList.add('visible');
+
+            // 如果允许返回
+            if (options?.allowReturn) {
+                const returnBtn = document.getElementById('completionReturnBtn');
+                if (returnBtn) {
+                    returnBtn.classList.remove('hidden');
+                    returnBtn.onclick = () => this.handleReturn(options.returnTarget);
+                }
+            }
+        } else {
+            // 如果没有专门的完成屏幕，使用 modal
+            if (this.domTitle && this.domMsg && this.domModal) {
+                this.domTitle.innerText = this.t('win_title') || 'MISSION COMPLETE';
+                this.domMsg.innerHTML = options?.successMsg || this.t('win_msg') || 'All objectives achieved.';
+
+                // [修复] 如果配置允许返回，手动在通用弹窗中追加一个按钮
+                if (options?.allowReturn) {
+                    const btnId = 'dynamicReturnBtn';
+                    // 先检查是否已经添加过，防止重复
+                    const existBtn = document.getElementById(btnId);
+                    if(existBtn) existBtn.remove();
+
+                    // 创建按钮
+                    const btn = document.createElement('button');
+                    btn.id = btnId;
+                    btn.className = 'btn-opt'; // 复用游戏内的按钮样式
+                    btn.style.marginTop = '25px';
+                    btn.style.width = '100%';
+                    btn.style.justifyContent = 'center';
+                    btn.innerHTML = '<span>EXIT / 撤离现场</span>';
+
+                    // 绑定点击事件
+                    btn.onclick = () => {
+                        this.domModal.classList.add('hidden'); // 点击后先隐藏弹窗
+                        this.handleReturn(options.returnTarget);
+                    };
+
+                    this.domMsg.appendChild(btn);
+                }
+
+                this.domModal.classList.remove('hidden');
+                this.domModal.classList.add('win');
+            }
+        }
+
+        if (this.domActions) this.domActions.innerHTML = '';
+    }
+
+    /**
+     * 处理返回操作
+     */
+    /**
+     * 处理返回操作
+     */
+    handleReturn(returnTarget) {
+        // ★★★ 修复点：优先检查是否有回调函数 (CampusEngine 集成模式) ★★★
+        if (this.onComplete) {
+            console.log('[Engine] Calling onComplete callback to return to Campus...');
+            this.onComplete({ success: true });
+            return;
+        }
+
+        if (window.parent && window.parent !== window) {
+            console.log('[Engine] Posting message to parent window...');
+            // 发送标准格式的消息，MiniGameManager 会监听这个消息
+            window.parent.postMessage({
+                type: 'minigame_complete',
+                payload: { success: true }
+            }, '*');
+            return;
+        }
+
+        // 下面是独立运行模式的逻辑
+        if (returnTarget && this.levelLibrary[returnTarget]) {
+            // 跳转到指定地图
+            window.location.href = `hacker-view.html?map=${returnTarget}`;
+        } else {
+            // 关闭窗口或返回上一页
+            if (window.opener) {
+                window.close();
+            } else {
+                window.history.back();
+            }
+        }
     }
 
     onMiniGameExit() {
@@ -1331,7 +1957,7 @@ class GameEngine {
     }
 
     // 显示锁定屏幕的辅助方法
-    showFinalLockScreen() {
+    showFinalLockScreen(options = {}) {
         // 停止背景音乐
         this.stopBgm();
 
@@ -1340,6 +1966,16 @@ class GameEngine {
             lockScreen.classList.remove('hidden');
             void lockScreen.offsetWidth; // 强制重绘
             lockScreen.classList.add('visible');
+
+            // 如果配置允许返回，显示返回按钮
+            if (options?.allowReturn) {
+                const returnArea = document.getElementById('lockReturnArea');
+                const returnBtn = document.getElementById('lockReturnBtn');
+                if (returnArea && returnBtn) {
+                    returnArea.classList.remove('hidden');
+                    returnBtn.onclick = () => this.handleReturn(options.returnTarget);
+                }
+            }
         }
         if (this.domActions) this.domActions.innerHTML = '';
         this.isGameOver = true;
@@ -1495,3 +2131,50 @@ class GameEngine {
         }
     }
 }
+
+// ===========================================
+// [新增] 监听父窗口传来的初始化数据
+// ===========================================
+window.addEventListener('message', (event) => {
+    const data = event.data;
+
+    // 1. 确保消息类型正确
+    if (data && data.type === 'init') {
+        console.log('[HackerEngine] 收到初始化信号:', data);
+
+        // 2. 提取父窗口注入的关卡数据 (Injected Data)
+        // 结构路径: data -> node -> config -> injectedLevelData
+        const injectedLevels = data.node?.config?.injectedLevelData;
+
+        if (injectedLevels) {
+            console.log('[HackerEngine] 检测到外部注入的关卡数据，正在应用...');
+
+            // 3. 覆盖全局配置 (关键！)
+            window.LevelConfig = injectedLevels;
+
+            // 4. 如果游戏引擎已经启动，强制重载新关卡
+            if (window.gameEngine) {
+                // 更新引擎内部的关卡库
+                window.gameEngine.levelLibrary = injectedLevels;
+
+                // 找到新配置里的第一个关卡ID（例如 "level_2"）
+                const levelIds = Object.keys(injectedLevels);
+                if (levelIds.length > 0) {
+                    const targetLevelId = levelIds[0];
+                    console.log(`[HackerEngine] 立即跳转至新关卡: ${targetLevelId}`);
+
+                    // 重新加载关卡
+                    window.gameEngine.loadLevel(targetLevelId);
+
+                    // 同步背包数据 (如果有)
+                    if (data.inventory) {
+                        window.gameEngine.inventory = data.inventory;
+                        window.gameEngine.updateInventoryUi();
+                    }
+                }
+            }
+        } else {
+            console.warn('[HackerEngine] 未检测到注入数据，维持默认关卡。');
+        }
+    }
+});

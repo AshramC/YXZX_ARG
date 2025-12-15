@@ -1,0 +1,788 @@
+/* campus-style.css - Final Complete Version */
+
+:root {
+    --p5-red: #d90018;
+    --p5-black: #1a1a1a;
+    --p5-white: #f2f2f2;
+    --font-impact: 'Impact', 'Arial Black', sans-serif;
+}
+
+body {
+    margin: 0;
+    overflow: hidden;
+    background: var(--p5-black);
+    font-family: sans-serif;
+    color: var(--p5-black);
+}
+
+/* =========================================
+   1. 基础舞台 (Stage & Background)
+   ========================================= */
+.stage-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    background: radial-gradient(circle, #333 0%, #000 100%);
+}
+
+.bg-layer {
+    position: absolute;
+    inset: 0;
+    opacity: 0.2;
+    background-image: repeating-linear-gradient(45deg, transparent, transparent 20px, #fff 20px, #fff 22px);
+    animation: bgScroll 20s linear infinite;
+}
+
+@keyframes bgScroll {
+    from { background-position: 0 0; }
+    to { background-position: 100px 100px; }
+}
+
+/* =========================================
+   2. HUD (日期与天气)
+   ========================================= */
+.hud-container {
+    position: absolute;
+    top: 20px;
+    left: -20px;
+    transform: rotate(-5deg);
+    z-index: 10;
+}
+
+.date-badge {
+    background: var(--p5-red);
+    color: white;
+    padding: 10px 40px 10px 30px;
+    clip-path: polygon(0 0, 100% 0, 85% 100%, 0% 100%);
+    font-family: var(--font-impact);
+}
+
+.date-day {
+    font-size: 3rem;
+    line-height: 0.9;
+    transition: all 0.1s;
+}
+
+/* 日期跳变动画 */
+.date-day.jumping {
+    transform: scale(1.2);
+    color: #facc15;
+    text-shadow: 0 0 10px #facc15;
+}
+
+.date-month { font-size: 1rem; }
+.date-week { font-size: 1.2rem; text-align: right; }
+
+.time-weather-block {
+    background: white;
+    color: black;
+    margin-top: -5px;
+    margin-left: 10px;
+    padding: 5px 30px 5px 20px;
+    clip-path: polygon(0 0, 95% 0, 85% 100%, 0% 100%);
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* =========================================
+   3. 手机入口 (Floating Trigger)
+   ========================================= */
+.phone-trigger {
+    position: absolute;
+    bottom: 40px;
+    left: 40px;
+    width: 64px;
+    height: 64px;
+    background: black;
+    border: 3px solid white;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    z-index: 150;
+    transition: transform 0.2s;
+    box-shadow: 5px 5px 0 var(--p5-red);
+}
+
+.phone-trigger:hover { transform: scale(1.1); }
+.phone-icon { font-size: 32px; filter: drop-shadow(0 0 2px white); }
+
+.phone-trigger.shaking {
+    background: var(--p5-red);
+    border-color: black;
+    animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both infinite;
+}
+
+.phone-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    width: 24px;
+    height: 24px;
+    background: red;
+    color: white;
+    border-radius: 50%;
+    border: 2px solid white;
+    font-size: 12px;
+    font-weight: bold;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+@keyframes shake {
+    10%, 90% { transform: translate3d(-1px, 0, 0); }
+    20%, 80% { transform: translate3d(2px, 0, 0); }
+    30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+    40%, 60% { transform: translate3d(4px, 0, 0); }
+}
+
+/* =========================================
+   4. 手机界面 (Phone Interface)
+   ========================================= */
+.phone-layer {
+    position: absolute;
+    bottom: -120%;
+    right: 5%;
+    width: 380px;
+    height: 75vh;
+    z-index: 200;
+    transition: bottom 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transform: rotate(-3deg);
+    filter: drop-shadow(-15px 15px 5px rgba(0,0,0,0.5));
+}
+
+.phone-layer.active { bottom: -20px; }
+
+.phone-body {
+    width: 100%;
+    height: 100%;
+    background: var(--p5-red);
+    display: flex;
+    flex-direction: column;
+    border: 4px solid white;
+    border-radius: 8px;
+    overflow: hidden;
+    clip-path: polygon(0 40px, 40px 0, 100% 0, 100% 100%, 0% 100%);
+}
+
+.phone-header {
+    height: 70px;
+    background: black;
+    color: white;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    font-family: var(--font-impact);
+    border-bottom: 3px solid white;
+    z-index: 5;
+}
+
+.header-back-btn {
+    font-size: 1.5rem;
+    margin-right: 15px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.header-back-btn:hover { color: var(--p5-red); transform: translateX(-5px); }
+.header-title { font-size: 1.5rem; letter-spacing: 1px; flex: 1; }
+
+.phone-content-stage {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: #f0f0f0;
+}
+
+/* 列表视图与详情视图 */
+.contact-list-view, .chat-detail-view {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    background: #f0f0f0;
+}
+
+.hidden { display: none !important; opacity: 0; pointer-events: none; }
+
+/* 联系人列表项 */
+.contact-item {
+    padding: 15px;
+    border-bottom: 1px solid #ddd;
+    background: white;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.contact-item:hover {
+    background: #fafafa;
+    padding-left: 20px;
+    border-left: 5px solid var(--p5-red);
+}
+.contact-item.has-unread { background: #fff0f0; }
+
+.contact-avatar {
+    width: 45px;
+    height: 45px;
+    background: black;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: bold;
+    font-family: monospace;
+    border: 2px solid var(--p5-red);
+}
+
+.contact-info { flex: 1; min-width: 0; }
+.c-name { font-weight: bold; font-size: 1.1rem; color: black; }
+.c-preview { font-size: 0.85rem; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c-badge { background: var(--p5-red); color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: bold; }
+.c-expired { color: #d90018; font-weight: bold; font-size: 0.75rem; border: 1px solid #d90018; padding: 2px 4px; transform: rotate(-10deg); }
+
+/* 聊天气泡区域 */
+.chat-viewport {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    background-image: radial-gradient(#aaa 1px, transparent 1px);
+    background-size: 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.chat-input-area {
+    min-height: 80px;
+    background: black;
+    padding: 15px;
+    border-top: 3px solid white;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* 气泡样式 */
+.chat-bubble {
+    max-width: 80%;
+    padding: 10px 15px;
+    font-size: 0.95rem;
+    font-weight: bold;
+    box-shadow: 3px 3px 0 rgba(0,0,0,0.1);
+    animation: pop 0.3s forwards;
+}
+.chat-bubble.left { align-self: flex-start; background: white; color: black; border: 2px solid black; border-bottom-left-radius: 0; border-top-right-radius: 12px; }
+.chat-bubble.right { align-self: flex-end; background: black; color: white; border: 2px solid var(--p5-red); border-bottom-right-radius: 0; border-top-left-radius: 12px; }
+.chat-bubble.system { align-self: center; background: rgba(0,0,0,0.05); color: #666; font-size: 0.8rem; border: none; box-shadow: none; }
+
+.typing-dots { background: white; border: 2px dashed #999; color: #666; }
+.typing-dots::after { content: '...'; animation: type 1.5s infinite; }
+
+@keyframes pop { from{opacity:0; transform:scale(0.8);} to{opacity:1; transform:scale(1);} }
+@keyframes type { 0%{content:'.'} 33%{content:'..'} 66%{content:'...'} }
+
+/* 聊天选项按钮 */
+.chat-option-btn {
+    background: white;
+    color: black;
+    padding: 10px;
+    text-align: center;
+    font-weight: 800;
+    cursor: pointer;
+    transform: skew(-10deg);
+    border: 2px solid white;
+    transition: 0.2s;
+}
+.chat-option-btn:hover {
+    background: var(--p5-red);
+    color: white;
+    border-color: black;
+    transform: skew(-10deg) translate(-2px,-2px);
+}
+
+/* =========================================
+   5. 过场与菜单 (Transitions & Menus)
+   ========================================= */
+.transition-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    pointer-events: none;
+    opacity: 0;
+    transition: 0.5s;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.transition-layer.active { opacity: 1; pointer-events: auto; }
+
+.trans-text-box h1 {
+    color: white;
+    font-family: var(--font-impact);
+    font-size: 4rem;
+    transform: skew(-10deg);
+    text-shadow: 5px 5px 0 var(--p5-red);
+}
+
+.menu-layer {
+    position: absolute;
+    right: 10%;
+    bottom: 20%;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 15px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(50px);
+    transition: 0.4s;
+}
+.menu-layer.active { opacity: 1; pointer-events: auto; transform: translateX(0); }
+
+.menu-item {
+    padding: 15px 40px 15px 20px;
+    background: black;
+    color: white;
+    font-family: var(--font-impact);
+    font-size: 1.5rem;
+    transform: skew(-20deg);
+    border: 2px solid white;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.menu-item:hover {
+    background: var(--p5-red);
+    color: black;
+    border-color: black;
+    transform: skew(-20deg) translateX(-20px) scale(1.1);
+}
+
+/* =========================================
+   6. 对话框系统 (Dialog System)
+   ========================================= */
+.dialog-layer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 35vh;
+    z-index: 80;
+    display: none;
+}
+.dialog-layer.visible { display: block; }
+
+.dialog-box {
+    position: absolute;
+    bottom: 20px;
+    left: 5%;
+    right: 5%;
+    height: 160px;
+    background: rgba(0,0,0,0.9);
+    border: 3px solid white;
+    transform: skew(-2deg);
+    padding: 20px 40px;
+    color: white;
+    box-shadow: 10px 10px 0 var(--p5-red);
+}
+
+.speaker-name-tag {
+    position: absolute;
+    top: -30px;
+    left: -10px;
+    background: var(--p5-red);
+    padding: 5px 20px;
+    font-weight: bold;
+    transform: skew(15deg);
+    border: 2px solid white;
+}
+.dialog-text {
+    font-size: 1.2rem;
+    line-height: 1.6;
+    font-family: monospace;
+    margin-top: 10px;
+}
+
+.choice-container {
+    position: absolute;
+    bottom: 220px;
+    right: 10%;
+    display: none;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 15px;
+    z-index: 90;
+}
+
+.choice-btn {
+    background: black;
+    color: white;
+    border: 3px solid white;
+    padding: 12px 40px;
+    font-family: var(--font-impact);
+    font-size: 1.4rem;
+    transform: skew(-15deg);
+    cursor: pointer;
+    box-shadow: 6px 6px 0 var(--p5-red);
+}
+.choice-btn:hover {
+    background: white;
+    color: black;
+    border-color: black;
+    transform: skew(-15deg) translateX(-15px);
+}
+
+/* =========================================
+   7. Minigame Overlay (嵌入式小游戏)
+   ========================================= */
+/* 全屏模式下的强制样式 */
+#minigame-container.mode-fullscreen {
+    width: 100vw !important;
+    height: 100vh !important;
+    transform: none !important;
+    clip-path: none !important;
+    box-shadow: none !important;
+    background-color: black !important;
+    padding: 0 !important;
+    z-index: 10000;
+}
+
+.mode-fullscreen #minigame-header { display: none !important; }
+
+.mode-fullscreen #minigame-frame {
+    border: none !important;
+    padding: 0 !important;
+    clip-path: none !important;
+}
+
+#minigame-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 9999;
+    display: flex; justify-content: center; align-items: center;
+    background-color: rgba(0, 0, 0, 0.85);
+    background-image: radial-gradient(#333 1px, transparent 1px);
+    background-size: 20px 20px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+#minigame-container {
+    position: relative;
+    width: 960px;
+    height: 680px;
+    transform: rotate(-2deg);
+}
+
+#minigame-header {
+    position: absolute;
+    top: -40px;
+    left: -20px;
+    background: var(--p5-red);
+    color: white;
+    padding: 8px 30px;
+    font-family: 'Impact', sans-serif;
+    font-size: 24px;
+    letter-spacing: 2px;
+    border: 3px solid white;
+    transform: skew(-10deg);
+    box-shadow: 5px 5px 0 black;
+    z-index: 20;
+    display: flex; justify-content: space-between; align-items: center;
+    min-width: 350px;
+}
+
+#minigame-close-btn {
+    background: black;
+    color: white;
+    border: 2px solid white;
+    font-family: 'Impact', sans-serif;
+    font-size: 16px;
+    padding: 2px 10px;
+    cursor: pointer;
+    margin-left: 20px;
+}
+#minigame-close-btn:hover { background: white; color: #d90018; }
+
+#minigame-frame {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: #1a1a1a;
+    clip-path: polygon(
+            20px 0, 100% 0,
+            100% calc(100% - 20px), calc(100% - 20px) 100%,
+            0 100%, 0 20px
+    );
+    padding: 6px;
+    box-sizing: border-box;
+}
+
+/* =========================================
+   8. 结局画面重构 (Immersive Ending)
+   ========================================= */
+.ending-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #000;
+    z-index: 20000;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end; /* 内容沉底 */
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.5s ease;
+    font-family: 'Impact', sans-serif;
+}
+
+.ending-layer.active { opacity: 1; pointer-events: auto; }
+
+/* 背景图融合效果 */
+.ending-bg-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 80%;
+    background-size: cover;
+    background-position: center top;
+    background-repeat: no-repeat;
+    z-index: 0;
+    -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 100%);
+    mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 100%);
+}
+
+.ending-bg-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at center, transparent 0%, #000 90%);
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* 底部内容容器 */
+.ending-container {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px;
+    padding-bottom: 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.ending-title {
+    font-size: 5rem;
+    color: var(--p5-red);
+    margin: 0;
+    line-height: 1;
+    text-shadow: 2px 2px 0 #fff;
+    transform: skew(-10deg) translateX(-20px);
+    opacity: 0;
+    animation: slideInLeft 1s 0.5s forwards;
+}
+
+.ending-footer-panel {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 40px;
+    border-top: 2px solid var(--p5-red);
+    padding-top: 30px;
+    background: linear-gradient(to right, rgba(20,20,20,0.9), transparent);
+}
+
+/* 左侧文字区 */
+.ending-text-area {
+    flex: 1;
+    color: #fff;
+    font-family: sans-serif;
+}
+
+.ending-congrats {
+    font-size: 1.8rem;
+    margin-bottom: 15px;
+    color: #fff;
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(217, 0, 24, 0.5);
+}
+
+.ending-message {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: #ccc;
+    margin-bottom: 30px;
+    max-width: 600px;
+}
+
+/* P5 风格重启按钮 */
+.p5-btn {
+    background: black;
+    color: white;
+    border: 2px solid white;
+    padding: 12px 40px;
+    font-family: 'Impact', sans-serif;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transform: skew(-10deg);
+    transition: all 0.2s;
+    box-shadow: 5px 5px 0 var(--p5-red);
+    text-transform: uppercase;
+}
+.p5-btn:hover {
+    background: white;
+    color: black;
+    transform: skew(-10deg) translate(-2px, -2px);
+    box-shadow: 7px 7px 0 var(--p5-red);
+}
+
+/* 右侧二维码区 */
+.ending-qr-area {
+    display: flex;
+    gap: 20px;
+    align-items: flex-end;
+}
+
+/* 二维码卡片 (自适应长条图) */
+.qr-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    padding: 8px 8px 5px 8px;
+    width: 120px; /* 固定宽度 */
+    transform: rotate(-2deg);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    transition: transform 0.3s, z-index 0.3s, box-shadow 0.3s;
+    cursor: pointer; /* 手型 */
+}
+
+.qr-card:last-child { transform: rotate(2deg); }
+
+.qr-card:hover {
+    transform: scale(1.05) rotate(0);
+    z-index: 50;
+    box-shadow: 0 8px 25px rgba(217, 0, 24, 0.4);
+}
+
+.qr-img-box {
+    width: 100%;
+    overflow: hidden;
+    border-radius: 2px;
+    max-height: 200px; /* 安全高度限制 */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.qr-img-box img {
+    width: 100%;
+    height: auto; /* 保持原始比例 */
+    object-fit: contain;
+    display: block;
+}
+
+.qr-label {
+    font-size: 1rem;
+    font-weight: bold;
+    color: black;
+    font-family: 'Impact', sans-serif;
+    text-align: center;
+    margin-bottom: 2px;
+}
+
+.qr-desc {
+    font-size: 0.75rem;
+    color: #555;
+    font-family: sans-serif;
+    text-align: center;
+}
+
+.tap-hint {
+    font-size: 0.7rem;
+    color: var(--p5-red);
+    margin-top: 4px;
+    font-weight: bold;
+}
+
+@keyframes slideInLeft {
+    from { opacity: 0; transform: skew(-10deg) translateX(-100px); }
+    to { opacity: 1; transform: skew(-10deg) translateX(0); }
+}
+
+/* =========================================
+   9. 二维码查看模态框 (Full Screen Modal)
+   ========================================= */
+.qr-modal {
+    display: none; /* Flex by JS */
+    position: fixed;
+    z-index: 30000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.85);
+    justify-content: center;
+    align-items: center;
+    animation: fadeIn 0.3s;
+    backdrop-filter: blur(5px);
+}
+
+.modal-content {
+    margin: auto;
+    display: block;
+    max-width: 90vw;
+    max-height: 90vh;
+    object-fit: contain;
+    border: 4px solid #fff;
+    box-shadow: 0 0 30px rgba(0,0,0,0.8);
+    animation: zoomIn 0.3s;
+}
+
+.close-modal {
+    position: absolute;
+    top: 30px;
+    right: 50px;
+    color: #f1f1f1;
+    font-size: 50px;
+    font-weight: bold;
+    transition: 0.3s;
+    z-index: 30001;
+    text-shadow: 2px 2px 5px #000;
+}
+
+.close-modal:hover,
+.close-modal:focus {
+    color: var(--p5-red);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+@keyframes zoomIn {
+    from {transform:scale(0.8); opacity: 0;}
+    to {transform:scale(1); opacity: 1;}
+}
+
+@keyframes fadeIn {
+    from {opacity: 0;}
+    to {opacity: 1;}
+}

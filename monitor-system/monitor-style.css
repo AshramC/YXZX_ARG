@@ -488,3 +488,55 @@ body.lang-en div.lang-en-only {
     /* 维持原有的 input-box 样式，这里只是为了确保 display 正确 */
     display: block;
 }
+
+/* =========================================
+   Ending Mode Overrides (结局模式专用样式)
+   通过 body.mode-ending 类名触发
+   ========================================= */
+
+body.mode-ending {
+    background: black !important;
+}
+
+/* 彻底隐藏 UI 组件 */
+body.mode-ending .sidebar,
+body.mode-ending .control-bar,
+body.mode-ending .brand,
+body.mode-ending #deduce-btn-container {
+    display: none !important;
+}
+
+/* 重置布局为全屏 */
+body.mode-ending .layout-container {
+    display: block !important; /* 移除 grid 布局 */
+    height: 100vh;
+}
+
+/* 移除主视图的内边距，让画面铺满 */
+body.mode-ending .main-view {
+    padding: 0 !important;
+    height: 100%;
+    width: 100%;
+    display: block !important;
+}
+
+/* 让监控屏幕容器铺满 */
+body.mode-ending .monitor-screen {
+    border: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: black !important;
+}
+
+/* 隐藏背景网格 */
+body.mode-ending .map-layer {
+    background: black !important;
+    box-shadow: none !important;
+}
+
+/* 确保演出层在最上 */
+body.mode-ending .director-stage {
+    z-index: 9999;
+}

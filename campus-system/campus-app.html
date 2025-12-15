@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>H.O.M.E. System - Persona Style</title>
+    <link rel="stylesheet" href="campus-style.css">
+</head>
+<body>
+
+<div class="stage-container">
+    <div class="bg-layer" id="bgLayer">
+        <div class="bg-pattern"></div>
+    </div>
+
+    <div class="hud-container">
+        <div class="date-badge">
+            <div class="date-month">12 /</div>
+            <div class="date-day" id="uiDay">--</div>
+            <div class="date-week" id="uiWeek">---</div>
+        </div>
+        <div class="time-weather-block">
+            <div class="weather-icon">☀</div>
+            <div class="time-label" id="uiTimeSlot">LOADING</div>
+        </div>
+    </div>
+
+    <div class="transition-layer" id="transLayer">
+        <div class="trans-stripe top"></div>
+        <div class="trans-stripe bottom"></div>
+        <div class="trans-text-box">
+            <h1 id="transText">SYSTEM INITIALIZING...</h1>
+        </div>
+    </div>
+
+    <div class="menu-layer" id="menuLayer">
+        <div class="menu-list" id="menuList"></div>
+        <div class="menu-deco-char">TAKE YOUR TIME</div>
+    </div>
+
+    <div class="dialog-layer" id="dialogLayer">
+        <div class="dialog-box">
+            <div class="speaker-name-tag" id="speakerName"></div>
+            <div class="dialog-text" id="dialogText"></div>
+            <div class="dialog-next-icon">▼</div>
+        </div>
+        <div class="choice-container" id="choiceContainer"></div>
+    </div>
+
+    <div class="phone-trigger" id="phoneBtn" onclick="CampusEngine.togglePhone()">
+        <div class="phone-icon">📱</div>
+        <div class="phone-badge hidden" id="phoneGlobalBadge">!</div>
+    </div>
+
+    <div class="phone-layer" id="phoneLayer">
+        <div class="phone-body">
+            <div class="phone-header">
+                <div class="header-back-btn hidden" id="phoneBackBtn">◀</div>
+                <div class="header-title" id="phoneTitle">MESSAGES</div>
+                <div class="signal-icons">⚡ 5G</div>
+            </div>
+
+            <div class="phone-content-stage">
+                <div class="contact-list-view" id="contactListView">
+                </div>
+
+                <div class="chat-detail-view hidden" id="chatDetailView">
+                    <div class="chat-viewport" id="chatList"></div>
+                    <div class="chat-input-area" id="chatInput"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="ending-layer" id="endingLayer">
+        <div class="ending-bg-image" id="endingBg"></div>
+        <div class="ending-bg-overlay"></div>
+
+        <div class="ending-container">
+            <h1 class="ending-title" id="endTitle">CASE CLOSED</h1>
+
+            <div class="ending-footer-panel">
+                <div class="ending-text-area">
+                    <h2 class="ending-congrats">恭喜大家通关了<br>“异象中学转校生失踪事件”</h2>
+                    <p class="ending-message">
+                        如果大家觉得好玩的话，可不可以帮我写一些反馈或者录制视频发在各平台上，或者是推荐给你们的朋友们。<br>
+                        这个对我很重要，谢谢大家！
+                    </p>
+                    <button class="restart-btn p5-btn" onclick="CampusEngine.reloadGame()">
+                        <span>↻ RESTART GAME</span>
+                    </button>
+                </div>
+
+                <div class="ending-qr-area">
+                    <div class="qr-card" onclick="CampusEngine.showQrModal('../ending/xhs.jpg')">
+                        <div class="qr-img-box">
+                            <img src="../ending/xhs.jpg" alt="小红书">
+                        </div>
+                        <span class="qr-label">小红书</span>
+                        <span class="qr-desc">作者小红书账号</span>
+                        <span class="tap-hint">(点击查看大图)</span>
+                    </div>
+
+                    <div class="qr-card" onclick="CampusEngine.showQrModal('../ending/bili.jpg')">
+                        <div class="qr-img-box">
+                            <img src="../ending/bili.jpg" alt="Bilibili">
+                        </div>
+                        <span class="qr-label">Bilibili</span>
+                        <span class="qr-desc">作者Bilibili账号</span>
+                        <span class="tap-hint">(点击查看大图)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="qrModal" class="qr-modal" onclick="CampusEngine.hideQrModal()">
+        <span class="close-modal">&times;</span>
+        <img class="modal-content" id="qrModalImg">
+    </div>
+
+</div>
+
+<div id="debugPanel" style="position: fixed; top: 10px; right: 10px; z-index: 9999; background: rgba(0,0,0,0.8); padding: 10px; border: 1px solid red; color: white; display: none;">
+    <h4 style="margin: 0 0 10px 0; color: red;">DEBUG MODE</h4>
+    <div style="margin-bottom: 5px;">
+        <label>Select Scenario:</label>
+        <select id="debugOutcomeSelect" style="background: #333; color: white; border: 1px solid #555; width: 100%; margin-top: 5px;">
+            <option value="perfect">Perfect (4 Lines - Full)</option>
+            <option value="good">Good (3 Lines - No Luyan)</option>
+            <option value="normal">Normal (2 Lines - Survival)</option>
+            <option value="bad_brawl">Bad 1 (No Chen - Brawl)</option>
+            <option value="bad_arrest">Bad 2 (No Lin - Arrest)</option>
+            <option value="hacker_only">Test: Hacker Only (Fail)</option>
+        </select>
+    </div>
+    <button onclick="triggerDebugEnding()" style="background: red; color: white; border: none; padding: 5px 10px; cursor: pointer; width: 100%; margin-top: 5px; font-weight: bold;">
+        SIMULATE ENDING
+    </button>
+    <div style="font-size: 10px; color: #aaa; margin-top: 5px;">* Injects Flags & Triggers Logic</div>
+    <button onclick="document.getElementById('debugPanel').style.display = 'none'" style="background: #333; color: #aaa; border: none; width: 100%; margin-top: 5px; cursor: pointer;">
+        CLOSE
+    </button>
+</div>
+
+<!--<button onclick="document.getElementById('debugPanel').style.display = 'block'" style="position: fixed; top: 0; left: 0; z-index: 10000; opacity: 0.2; font-size: 20px; cursor: pointer; background:none; border:none;">🐞</button>-->
+
+<script>
+    function triggerDebugEnding() {
+        const scenario = document.getElementById('debugOutcomeSelect').value;
+        if (window.CampusEngine && window.CampusEngine.debugSimulateScenario) {
+            window.CampusEngine.debugSimulateScenario(scenario);
+            document.getElementById('debugPanel').style.display = 'none';
+        } else {
+            alert("Engine not ready or debug method missing.");
+        }
+    }
+</script>
+
+<script src="../tools/decrypt-lib.js"></script>
+<script src="../tools/config-loader.js"></script>
+<script src="../hacker-system/minigame-manager.js"></script>
+<script src="campus-engine.js"></script>
+
+</body>
+</html>

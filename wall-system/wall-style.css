@@ -55,7 +55,7 @@ body {
     align-items: start;
 }
 
-/* 顶部导航条 (移动端优先显示) */
+/* 顶部导航栏 (移动端优先显示) */
 .navbar {
     position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,0.9); backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--border); padding: 0.8rem 1.5rem;
@@ -200,4 +200,238 @@ body.lang-en p.lang-en-only { display: block !important; }
 /* 4. 话题标签的多语言适配 (JS渲染时会用到) */
 .nav-item .lang-cn-only, .nav-item .lang-en-only {
     /* 确保在 flex 容器中正确显示 */
+}
+
+
+/* =============================================================================
+   演出系统样式 (Performance System Styles)
+   ============================================================================= */
+
+/* 特殊模式标记 */
+.special-mode-badge {
+    background: var(--danger);
+    color: white;
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: 10px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+/* === 演出遮罩层 === */
+.performance-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    transition: opacity 0.5s ease;
+}
+
+.performance-overlay.blackout {
+    background: #000;
+}
+
+.performance-overlay.system-message-mode {
+    background: rgba(0, 0, 0, 0.95);
+}
+
+.performance-overlay.fade-out {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.performance-content {
+    text-align: center;
+    max-width: 600px;
+    padding: 2rem;
+}
+
+.performance-text {
+    color: #00ff00;
+    font-family: 'Courier New', monospace;
+    font-size: 1.2rem;
+    text-shadow: 0 0 10px #00ff00;
+    min-height: 2rem;
+    letter-spacing: 0.05em;
+}
+
+.performance-loader {
+    margin-top: 2rem;
+    width: 200px;
+    height: 4px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.loader-bar {
+    width: 30%;
+    height: 100%;
+    background: #00ff00;
+    animation: loading 1.5s infinite ease-in-out;
+}
+
+@keyframes loading {
+    0% { transform: translateX(-100%); }
+    50% { transform: translateX(200%); }
+    100% { transform: translateX(-100%); }
+}
+
+/* === 系统横幅 === */
+.system-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 150;
+    background: linear-gradient(90deg, #000 0%, #1a1a1a 50%, #000 100%);
+    color: #00ff00;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    padding: 8px 20px;
+    text-align: center;
+    border-bottom: 1px solid #00ff00;
+    animation: bannerSlideIn 0.5s ease;
+}
+
+@keyframes bannerSlideIn {
+    from { transform: translateY(-100%); }
+    to { transform: translateY(0); }
+}
+
+/* === Glitch 故障效果 === */
+.glitch-effect {
+    animation: glitch 0.3s infinite;
+}
+
+@keyframes glitch {
+    0% {
+        transform: translate(0);
+        filter: hue-rotate(0deg);
+    }
+    10% {
+        transform: translate(-5px, 2px);
+        filter: hue-rotate(90deg);
+    }
+    20% {
+        transform: translate(5px, -2px);
+        filter: hue-rotate(180deg);
+    }
+    30% {
+        transform: translate(-3px, 3px);
+        filter: hue-rotate(270deg);
+    }
+    40% {
+        transform: translate(3px, -3px);
+        filter: hue-rotate(360deg);
+    }
+    50% {
+        transform: translate(-2px, 1px);
+        clip-path: inset(20% 0 30% 0);
+    }
+    60% {
+        transform: translate(2px, -1px);
+        clip-path: inset(50% 0 10% 0);
+    }
+    70% {
+        transform: translate(-1px, 2px);
+        clip-path: inset(10% 0 60% 0);
+    }
+    80% {
+        transform: translate(1px, -2px);
+        clip-path: none;
+    }
+    90% {
+        transform: translate(0);
+        filter: hue-rotate(0deg);
+    }
+    100% {
+        transform: translate(0);
+    }
+}
+
+/* =================================================================
+   平滑的原生插入动画 (Natural Feed Animation)
+   ================================================================= */
+
+/* 初始状态：透明，位置稍微靠下，模拟内容刚被加载 */
+.performance-reveal {
+    opacity: 0;
+    transform: translateY(20px); /* 稍微下移即可，不要太大，太大会显得生硬 */
+    transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1); /* 使用类似 iOS 的缓动曲线 */
+}
+
+/* 激活状态：回到原位，完全不透明 */
+.performance-reveal.revealed {
+    opacity: 1;
+    transform: translateY(0);
+    /* 这里添加一个背景色褪去的效果，模拟“高亮显示新内容” */
+    animation: newPostHighlight 1.5s ease-out forwards;
+}
+
+/* 动画：背景色从淡淡的黄色褪去到白色 (模拟新消息提醒) */
+@keyframes newPostHighlight {
+    0% {
+        background-color: rgba(249, 115, 22, 0.1); /* 极淡的品牌色背景 */
+        border-color: rgba(249, 115, 22, 0.3);
+    }
+    100% {
+        background-color: var(--bg-card);
+        border-color: transparent;
+    }
+}
+
+@keyframes postGlow {
+    0% {
+        box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 20px 10px rgba(249, 115, 22, 0.3);
+    }
+    100% {
+        box-shadow: var(--shadow-card);
+    }
+}
+
+/* === 危险主题（可选） === */
+body[data-wall-theme="danger"] {
+    --brand: #ef4444;
+    --brand-hover: #dc2626;
+    --brand-light: #fef2f2;
+}
+
+body[data-wall-theme="danger"] .navbar {
+    background: rgba(30, 30, 30, 0.95);
+    border-bottom-color: #ef4444;
+}
+
+body[data-wall-theme="danger"] .brand-logo {
+    color: #ef4444;
+}
+
+/* === 淡入动画 === */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* === 系统横幅闪烁 === */
+.system-banner::before {
+    content: '⚠️';
+    margin-right: 8px;
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
 }

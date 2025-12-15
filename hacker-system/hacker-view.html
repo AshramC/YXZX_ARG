@@ -10,6 +10,16 @@
 
 <audio id="bgmAudio" src="../bgm/hacker.mp3" loop preload="auto"></audio>
 
+<div id="systemBootLoader" class="boot-loader">
+    <div class="boot-terminal">
+        <div class="boot-spinner"></div>
+        <div class="boot-text" id="bootText">SYSTEM INITIALIZING...</div>
+        <div class="boot-progress">
+            <div class="boot-bar"></div>
+        </div>
+    </div>
+</div>
+
 <div class="monitor-wrapper">
     <div class="overlay-scanline"></div>
     <div class="overlay-vignette"></div>
@@ -29,7 +39,7 @@
     </div>
 
     <div class="monitor-header">
-        <span>
+       <span id="hacker-location">
             <span class="lang-en-only">CAM_04: LIBRARY_ARCHIVE</span>
             <span class="lang-cn-only">实时监控源: 图书馆</span>
         </span>
@@ -77,7 +87,7 @@
 <div class="phone-terminal">
     <div class="phone-header">
         <span class="signal">📶 5G</span>
-            <span class="contact-name">
+            <span class="contact-name" id="hacker-dialog-speaker">
                  <span class="lang-en-only">ANONYMOUS</span>
                 <span class="lang-cn-only">匿名黑客</span>
             </span>
@@ -161,10 +171,14 @@
     // 配置重载函数
     async function reloadAllConfigs(lang) {
         try {
-            // 加载关卡配置
+            const urlParams = new URLSearchParams(window.location.search);
+            const levelConfigFile = urlParams.get('config') || 'level1';
+
+            // 2. 动态加载指定的关卡配置
+            // 注意：第一个参数加上了 '-config' 后缀以匹配文件名
             await UnifiedLoader.load(
-                'level1-config',
-                'LevelConfig',
+                `${levelConfigFile}-config`,  // 文件名: 如 level_square-config
+                'LevelConfig',                // 变量名: 依然是 LevelConfig
                 'ENCRYPTED_LEVEL_CONFIG',
                 lang
             );
@@ -221,21 +235,58 @@
     // 启动流程
     // ============================================================
     (async function() {
-        try {
-            // 1. 先等待配置和语言加载完成
-            await initLanguage();
-            console.log("Config loaded, starting engine...");
+        const loader = document.getElementById('systemBootLoader');
+        const bootText = document.getElementById('bootText');
+        const gameContainer = document.querySelector('.monitor-wrapper');
 
-            // 2. 配置就绪后，手动启动引擎
-            // 此时 hacker-engine.js 已经加载(因为它在body底部)，GameEngine 类已可用
+        try {
+            bootText.innerText = "LOADING CONFIG..."; // 更新文字
+            console.time('1. 语言初始化');
+            await initLanguage();
+            console.timeEnd('1. 语言初始化');
+
+
+            console.time('2. 引擎启动');
+            bootText.innerText = "INITIALIZING CORE..."; // 更新文字
             if (typeof GameEngine !== 'undefined') {
-                new GameEngine();
-            } else {
-                console.error("GameEngine class not found!");
+                // 解析URL参数
+                const urlParams = new URLSearchParams(window.location.search);
+                const mapId = urlParams.get('map');
+                if (mapId) {
+                    console.log(`[URL] 检测到地图参数: ${mapId}`);
+                }
+                new GameEngine(mapId);
             }
+            console.timeEnd('2. 引擎启动');
+
+            bootText.innerText = "ACCESS GRANTED";
+            bootText.style.color = "#ffffff";
+
+            setTimeout(() => {
+                // 隐藏 Loading
+                loader.classList.add('hidden');
+
+                // 显示游戏界面
+                if(gameContainer) {
+                    gameContainer.style.opacity = 1;
+                }
+
+                // 彻底移除 DOM (可选，防止遮挡交互)
+                setTimeout(() => {
+                    loader.remove();
+                }, 500); // 对应 CSS transition 时间
+
+            }, 500);
+
         } catch (e) {
-            console.error("Critical Error during startup:", e);
+            console.error("Critical Error:", e);
+            // 如果出错，在 Loading 界面报错，不要让用户傻等
+            bootText.innerText = "SYSTEM ERROR: LOAD FAILED";
+            bootText.style.color = "#ef4444"; // 红色
+            document.querySelector('.boot-spinner').style.borderColor = "#ef4444";
         }
+
+        console.timeEnd('总启动时间');
     })();
 </script>
 
@@ -288,6 +339,14 @@
                 > <span class="lang-en-only">Closing ports... CLOSED.</span><span class="lang-cn-only">正在关闭端口... 已关闭.</span><br>
                 > System going to standby.<br>
                 <span class="blinking-cursor">_</span>
+            </div>
+
+            <!-- 可配置的返回按钮区域 -->
+            <div id="lockReturnArea" class="lock-return-area hidden">
+                <button id="lockReturnBtn" class="btn-lock-return">
+                    <span class="lang-cn-only">← 返回</span>
+                    <span class="lang-en-only">← RETURN</span>
+                </button>
             </div>
         </div>
     </div>

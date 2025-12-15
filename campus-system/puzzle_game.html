@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Campus Puzzle System</title>
+    <script src="https://unpkg.com/konva@9/konva.min.js"></script>
+    <style>
+        body {
+            margin: 0; padding: 0;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            font-family: 'Impact', sans-serif;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            height: 100vh; color: #f2f2f2;
+        }
+
+        #game-box {
+            background-color: #333;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 50px; left: 0; width: 100%;
+            text-align: center;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .level-indicator {
+            font-size: 24px; letter-spacing: 2px;
+            color: #d90018; /* P5 Red */
+            text-shadow: 2px 2px 0 #000;
+            background: rgba(0,0,0,0.6);
+            padding: 5px 20px;
+            display: inline-block;
+            transform: skew(-10deg);
+            border: 2px solid #fff;
+        }
+
+        #loading-layer {
+            position: absolute;
+            font-size: 32px; letter-spacing: 2px;
+            color: #d90018;
+            text-transform: uppercase;
+            text-shadow: 3px 3px 0 #000;
+        }
+
+        /* === P5 风格操作指引 === */
+        .controls-hud {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 10px; /*稍微增加间距*/
+            z-index: 20;
+            pointer-events: none;
+            /* 优先使用 Impact 显示数字/英文字符，中文使用粗黑体 */
+            font-family: 'Impact', 'SimHei', 'Heiti SC', sans-serif;
+        }
+
+        .control-item {
+            background: black;
+            color: white;
+            padding: 8px 20px; /* 稍微加宽一点，适应中文视觉平衡 */
+            font-size: 20px;   /* 中文可以稍微大一点 */
+            letter-spacing: 2px;
+            border: 2px solid white;
+
+            /* P5 核心风格：倾斜 */
+            transform: skew(-15deg);
+
+            /* 红色阴影 */
+            box-shadow: 4px 4px 0 rgba(217, 0, 24, 0.8);
+
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .control-key {
+            color: #d90018; /* P5 红 */
+            font-weight: 900; /* 最粗体 */
+            border-bottom: 2px solid #d90018;
+            padding-bottom: 2px;
+        }
+
+        /* 简单的入场动画 */
+        .controls-hud {
+            animation: slideIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        @keyframes slideIn {
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui-layer">
+    <div id="level-badge" class="level-indicator">LEVEL 1 / 3</div>
+</div>
+
+<div class="controls-hud">
+    <div class="control-item">
+        <span class="control-key">按住左键</span>
+        <span>拖拽移动</span>
+    </div>
+    <div class="control-item">
+        <span class="control-key">点击右键</span>
+        <span>旋转碎片</span>
+    </div>
+</div>
+
+<div id="loading-layer">初始化中...</div>
+<div id="game-box"></div>
+
+<script>
+    // === 全局配置 ===
+    let CONFIG = {
+        rows: 3,
+        cols: 3,
+        snapDist: 25,
+        jitterAmount: 45,
+        // 默认关卡图片列表
+        levelImages: ['pic1.jpg'],
+        // 图片基础路径（可通过 init 消息设置，例如: 'campus-system/')
+        basePath: ''
+    };
+
+    // === 游戏状态 ===
+    let gameState = {
+        currentLevelIndex: 0, // 当前是第几张图 (0开始)
+        isGameActive: false,
+        completedCount: 0
+    };
+
+    let stage, layer;
+
+    // ==========================================
+    // 1. 通信模块
+    // ==========================================
+    window.addEventListener('message', (event) => {
+        const data = event.data;
+        if (data && data.type === 'init') {
+            console.log('[Puzzle] Init data received:', data);
+
+            const incomingConfig = data.node?.config || {};
+
+            // 允许外部覆盖图片列表 (例如: images: ['a.jpg', 'b.jpg'])
+            // 如果没有传，就用默认的 pic1, pic2, pic3
+            if (incomingConfig.images && Array.isArray(incomingConfig.images)) {
+                CONFIG.levelImages = incomingConfig.images;
+            }
+
+            // 允许外部设置图片基础路径 (例如: basePath: 'campus-system/')
+            if (incomingConfig.basePath) {
+                CONFIG.basePath = incomingConfig.basePath;
+            }
+
+            // 允许外部覆盖难度
+            if (incomingConfig.rows) CONFIG.rows = incomingConfig.rows;
+            if (incomingConfig.cols) CONFIG.cols = incomingConfig.cols;
+
+            // 重置状态并开始
+            gameState.currentLevelIndex = 0;
+            startLevel();
+        }
+    });
+
+    // ==========================================
+    // 2. 关卡流程控制
+    // ==========================================
+    function startLevel() {
+        const idx = gameState.currentLevelIndex;
+        const total = CONFIG.levelImages.length;
+
+        // 更新 UI
+        const badge = document.getElementById('level-badge');
+        badge.innerText = `LEVEL ${idx + 1} / ${total}`;
+
+        // 检查是否所有关卡已完成 (虽然 handleLevelComplete 会检查，这里防守一下)
+        if (idx >= total) {
+            handleFinalVictory();
+            return;
+        }
+
+        const imgSrc = CONFIG.levelImages[idx];
+        showLoading(`LOADING DATA: ${imgSrc}...`);
+
+        // 构建图片路径 - 处理 iframe 嵌入场景
+        const resolveImagePath = (src) => {
+            // 如果已经是完整URL，直接返回
+            if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:')) {
+                return src;
+            }
+            // 如果设置了 basePath，使用它
+            if (CONFIG.basePath) {
+                return CONFIG.basePath + src;
+            }
+            // 尝试获取当前脚本/页面的基础路径
+            try {
+                const currentScript = document.currentScript;
+                if (currentScript && currentScript.src) {
+                    const scriptDir = currentScript.src.substring(0, currentScript.src.lastIndexOf('/') + 1);
+                    return scriptDir + src;
+                }
+            } catch(e) {}
+            // 默认使用相对于当前HTML的路径
+            return src;
+        };
+
+        const fullImgSrc = resolveImagePath(imgSrc);
+
+        // 加载图片
+        const imageObj = new Image();
+        imageObj.onload = () => {
+            hideLoading();
+            // 可选：随关卡增加难度
+            // if (idx === 1) { CONFIG.rows = 4; CONFIG.cols = 4; }
+            // if (idx === 2) { CONFIG.rows = 5; CONFIG.cols = 5; }
+
+            initGame(imageObj);
+        };
+        imageObj.onerror = () => {
+            console.error(`[Puzzle] Failed to load image: ${fullImgSrc}`);
+            
+            // 尝试跳过到下一关
+            if (gameState.currentLevelIndex + 1 < CONFIG.levelImages.length) {
+                showLoading(`ERROR: ${imgSrc} MISSING - SKIPPING...`);
+                setTimeout(() => {
+                    gameState.currentLevelIndex++;
+                    startLevel();
+                }, 2000);
+            } else if (gameState.currentLevelIndex > 0) {
+                // 如果是最后一关失败，但之前有成功的关卡，视为完成
+                showLoading(`ERROR: ${imgSrc} MISSING`);
+                setTimeout(() => {
+                    console.log('[Puzzle] Final level image missing, treating as complete.');
+                    window.parent.postMessage({
+                        type: 'minigame-complete',
+                        result: { success: true, skippedLevels: [imgSrc] }
+                    }, '*');
+                }, 2000);
+            } else {
+                // 第一关就失败，显示错误并通知父窗口
+                showLoading(`ERROR: ${imgSrc} NOT FOUND<br><small style="font-size:16px">请检查图片文件是否存在</small>`);
+                setTimeout(() => {
+                    window.parent.postMessage({
+                        type: 'minigame-complete',
+                        result: { success: false, error: `Image not found: ${imgSrc}` }
+                    }, '*');
+                }, 3000);
+            }
+        };
+        // 只有跨域资源才需要设置 crossOrigin
+        if (fullImgSrc.startsWith('http')) {
+            imageObj.crossOrigin = 'Anonymous';
+        }
+        imageObj.src = fullImgSrc;
+    }
+
+    function handleLevelComplete() {
+        gameState.isGameActive = false;
+
+        const isLastLevel = (gameState.currentLevelIndex + 1) >= CONFIG.levelImages.length;
+        const textStr = isLastLevel ? '碎片已恢复' : '已完成所有碎片恢复';
+        const color = isLastLevel ? '#d90018' : '#ffffff';
+
+        // 播放文字动画
+        playTextAnim(textStr, color, () => {
+            if (isLastLevel) {
+                // 全部通关 -> 退出
+                setTimeout(() => {
+                    console.log('[Puzzle] All levels done. Sending complete message...');
+                    window.parent.postMessage({
+                        type: 'minigame-complete',
+                        result: { success: true }
+                    }, '*');
+                }, 1000);
+            } else {
+                // 还有下一关 -> 继续
+                gameState.currentLevelIndex++;
+                setTimeout(() => {
+                    startLevel(); // 加载下一张
+                }, 1000);
+            }
+        });
+    }
+
+    // ==========================================
+    // 3. Konva 游戏逻辑 (复用之前优化过的核心)
+    // ==========================================
+    function initGame(img) {
+        gameState.isGameActive = true;
+        gameState.completedCount = 0;
+
+        const stageW = window.innerWidth - 40;
+        const stageH = window.innerHeight - 40;
+
+        if (stage) stage.destroy();
+
+        stage = new Konva.Stage({
+            container: 'game-box',
+            width: stageW,
+            height: stageH
+        });
+        layer = new Konva.Layer();
+        stage.add(layer);
+
+        // 计算布局
+        const targetW = stageW * 0.7;
+        const targetH = stageH * 0.7;
+        const scale = Math.min(targetW / img.width, targetH / img.height);
+
+        const boardW = img.width * scale;
+        const boardH = img.height * scale;
+        const startX = (stageW - boardW) / 2;
+        const startY = (stageH - boardH) / 2;
+
+        // 生成网格
+        const gridPoints = [];
+        const tileW = boardW / CONFIG.cols;
+        const tileH = boardH / CONFIG.rows;
+
+        for (let r = 0; r <= CONFIG.rows; r++) {
+            gridPoints[r] = [];
+            for (let c = 0; c <= CONFIG.cols; c++) {
+                let x = startX + c * tileW;
+                let y = startY + r * tileH;
+                if (r > 0 && r < CONFIG.rows && c > 0 && c < CONFIG.cols) {
+                    x += (Math.random() - 0.5) * CONFIG.jitterAmount * 2;
+                    y += (Math.random() - 0.5) * CONFIG.jitterAmount * 2;
+                }
+                gridPoints[r][c] = {x, y};
+            }
+        }
+
+        // 底图提示
+        const hintImg = new Konva.Image({
+            x: startX, y: startY, image: img,
+            width: boardW, height: boardH, opacity: 0.1, listening: false
+        });
+        layer.add(hintImg);
+
+        // 生成碎片
+        for (let r = 0; r < CONFIG.rows; r++) {
+            for (let c = 0; c < CONFIG.cols; c++) {
+                createPiece(r, c, gridPoints, img, scale, startX, startY, tileW, tileH, stageW, stageH);
+            }
+        }
+        layer.draw();
+    }
+
+    function createPiece(r, c, gridPoints, img, scale, startX, startY, tileW, tileH, stageW, stageH) {
+        const pTL = gridPoints[r][c];
+        const pTR = gridPoints[r][c+1];
+        const pBR = gridPoints[r+1][c+1];
+        const pBL = gridPoints[r+1][c];
+
+        const cx = (pTL.x + pTR.x + pBR.x + pBL.x) / 4;
+        const cy = (pTL.y + pTR.y + pBR.y + pBL.y) / 4;
+
+        const localPts = {
+            tl: { x: pTL.x - cx, y: pTL.y - cy },
+            tr: { x: pTR.x - cx, y: pTR.y - cy },
+            br: { x: pBR.x - cx, y: pBR.y - cy },
+            bl: { x: pBL.x - cx, y: pBL.y - cy }
+        };
+
+        const piece = new Konva.Shape({
+            sceneFunc: function(ctx, shape) {
+                ctx.beginPath();
+                ctx.moveTo(localPts.tl.x, localPts.tl.y);
+                ctx.lineTo(localPts.tr.x, localPts.tr.y);
+                ctx.lineTo(localPts.br.x, localPts.br.y);
+                ctx.lineTo(localPts.bl.x, localPts.bl.y);
+                ctx.closePath();
+                ctx.fillStrokeShape(shape);
+            },
+            x: cx, y: cy,
+            fillPatternImage: img,
+            fillPatternOffset: {
+                x: (cx - startX) / scale,
+                y: (cy - startY) / scale
+            },
+            fillPatternScale: { x: scale, y: scale },
+            draggable: true,
+            stroke: '#888', strokeWidth: 1,
+            shadowColor: 'black', shadowBlur: 10, shadowOpacity: 0.3,
+        });
+
+        piece.targetX = cx;
+        piece.targetY = cy;
+
+        // 随机散落
+        const randX = Math.random() * (stageW - tileW) + tileW/2;
+        const randY = Math.random() * (stageH - tileH) + tileH/2;
+        piece.position({x: randX, y: randY});
+        piece.rotation(Math.floor(Math.random() * 4) * 90);
+
+        // 事件
+        piece.on('mouseover', () => document.body.style.cursor = 'grab');
+        piece.on('mouseout', () => document.body.style.cursor = 'default');
+        piece.on('dragstart', function() {
+            this.moveToTop(); this.shadowOpacity(0.6);
+            document.body.style.cursor = 'grabbing';
+        });
+        piece.on('dragend', function() {
+            this.shadowOpacity(0.3); document.body.style.cursor = 'grab';
+            checkSnap(this);
+        });
+        piece.on('contextmenu', function(e) {
+            e.evt.preventDefault();
+            if (!this.draggable()) return;
+            const currentRot = this.rotation();
+            const snappedRot = Math.round(currentRot / 90) * 90;
+            const newRot = snappedRot + 90;
+            new Konva.Tween({
+                node: this, duration: 0.2, rotation: newRot,
+                onFinish: () => checkSnap(this)
+            }).play();
+        });
+
+        layer.add(piece);
+    }
+
+    function checkSnap(node) {
+        if (!gameState.isGameActive) return;
+
+        const dx = node.x() - node.targetX;
+        const dy = node.y() - node.targetY;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        let rot = Math.round(node.rotation()) % 360;
+        if (rot < 0) rot += 360;
+
+        if (dist < CONFIG.snapDist && rot === 0) {
+            node.position({x: node.targetX, y: node.targetY});
+            node.rotation(0);
+            node.draggable(false);
+            node.moveToBottom();
+            node.stroke(null);
+            node.shadowOpacity(0);
+            node.off('dragstart dragmove dragend contextmenu mouseover mouseout');
+
+            new Konva.Tween({ node: node, duration: 0.1, scaleX: 1, scaleY: 1 }).play();
+
+            gameState.completedCount++;
+            layer.draw();
+
+            if (gameState.completedCount >= CONFIG.rows * CONFIG.cols) {
+                handleLevelComplete();
+            }
+        }
+    }
+
+    // ==========================================
+    // 4. 辅助视觉效果
+    // ==========================================
+    function showLoading(text) {
+        const el = document.getElementById('loading-layer');
+        el.innerHTML = text; // 使用 innerHTML 支持富文本错误提示
+        el.style.display = 'block';
+        document.getElementById('game-box').style.opacity = 0;
+    }
+
+    function hideLoading() {
+        document.getElementById('loading-layer').style.display = 'none';
+        document.getElementById('game-box').style.opacity = 1;
+    }
+
+    function playTextAnim(textStr, color, callback) {
+        const text = new Konva.Text({
+            x: stage.width() / 2, y: stage.height() / 2,
+            text: textStr,
+            fontSize: 60, fontFamily: 'Impact',
+            fill: color, stroke: 'white', strokeWidth: 2,
+            shadowColor: 'black', shadowOffset: {x: 5, y: 5},
+            opacity: 0, rotation: -5
+        });
+        text.offsetX(text.width() / 2);
+        text.offsetY(text.height() / 2);
+        layer.add(text);
+
+        // 进场动画
+        new Konva.Tween({
+            node: text, duration: 0.4,
+            opacity: 1, scaleX: 1.2, scaleY: 1.2,
+            easing: Konva.Easings.BackEaseOut,
+            onFinish: () => {
+                // 停留一会后执行回调
+                setTimeout(() => {
+                    // 出场动画
+                    new Konva.Tween({
+                        node: text, duration: 0.2, opacity: 0, scaleX: 2, scaleY: 2,
+                        onFinish: () => {
+                            text.destroy();
+                            if(callback) callback();
+                        }
+                    }).play();
+                }, 1500);
+            }
+        }).play();
+    }
+</script>
+</body>
+</html>

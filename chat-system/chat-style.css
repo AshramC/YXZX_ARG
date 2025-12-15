@@ -316,3 +316,8 @@ body.lang-en div.lang-en-only {
     margin-bottom: 0.5rem;
     background-color: #f9fafb; /* 稍微深一点的背景区分 */
 }
+
+.conv-special {
+    border-left: 3px solid #00ff41; /* 左侧加一条黑客绿的竖线 */
+    background: rgba(0, 255, 65, 0.05); /* 极其微弱的绿背景 */
+}

@@ -18,14 +18,42 @@
 (function() {
     'use strict';
 
-    const SAVE_KEY = 'hacker_game_save';
+    const SAVE_KEY_MAIN = 'hacker_game_save';
+    const SAVE_KEY_PREFIX = 'hacker_save_';
     const SAVE_VERSION = 1;
+
+    // 判断是否为独立任务的 mapId
+    function isStandaloneMission(mapId) {
+        // 主线关卡以 level_ 开头
+        // 独立任务可以使用其他前缀如 search_, side_, bonus_ 等
+        if (!mapId) return false;
+        return !mapId.startsWith('level_');
+    }
+
+    // 获取存档键
+    function getSaveKey(mapId) {
+        if (isStandaloneMission(mapId)) {
+            return SAVE_KEY_PREFIX + mapId;
+        }
+        return SAVE_KEY_MAIN;
+    }
 
     class SaveManager {
         constructor() {
             this.currentSave = null;
+            this.currentMapId = null; // 记录当前使用的 mapId
             this.load(); // 初始化时尝试加载存档
             console.log('[SaveManager] Initialized');
+        }
+
+        /**
+         * 设置当前地图ID（用于独立存档逻辑）
+         * @param {string} mapId
+         */
+        setMapId(mapId) {
+            this.currentMapId = mapId;
+            // 切换地图时重新加载对应存档
+            this.load();
         }
 
         // =====================================================================
@@ -59,10 +87,13 @@
                 }
             }
 
+            // 获取当前存档键
+            const saveKey = getSaveKey(data.levelId || this.currentMapId);
+
             try {
-                localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+                localStorage.setItem(saveKey, JSON.stringify(saveData));
                 this.currentSave = saveData;
-                console.log(`[SaveManager] ✅ 存档成功 [${data.saveType}]:`, {
+                console.log(`[SaveManager] ✅ 存档成功 [${data.saveType}] (key: ${saveKey}):`, {
                     level: saveData.levelId,
                     node: saveData.nodeId,
                     items: saveData.inventory.length
@@ -79,10 +110,13 @@
          * @returns {Object|null} 存档数据，无存档时返回 null
          */
         load() {
+            // 获取当前存档键
+            const saveKey = getSaveKey(this.currentMapId);
+
             try {
-                const raw = localStorage.getItem(SAVE_KEY);
+                const raw = localStorage.getItem(saveKey);
                 if (!raw) {
-                    console.log('[SaveManager] 无存档');
+                    console.log(`[SaveManager] 无存档 (key: ${saveKey})`);
                     this.currentSave = null;
                     return null;
                 }
@@ -96,7 +130,7 @@
                 }
 
                 this.currentSave = data;
-                console.log('[SaveManager] 📂 读取存档:', {
+                console.log(`[SaveManager] 📂 读取存档 (key: ${saveKey}):`, {
                     level: data.levelId,
                     node: data.nodeId,
                     type: data.saveType,
@@ -114,9 +148,26 @@
          * 清除存档
          */
         clear() {
-            localStorage.removeItem(SAVE_KEY);
+            const saveKey = getSaveKey(this.currentMapId);
+            localStorage.removeItem(saveKey);
             this.currentSave = null;
-            console.log('[SaveManager] 🗑️ 存档已清除');
+            console.log(`[SaveManager] 🗑️ 存档已清除 (key: ${saveKey})`);
+        }
+
+        /**
+         * 清除所有存档（包括主线和所有独立任务）
+         */
+        clearAll() {
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key === SAVE_KEY_MAIN || key.startsWith(SAVE_KEY_PREFIX))) {
+                    keysToRemove.push(key);
+                }
+            }
+            keysToRemove.forEach(key => localStorage.removeItem(key));
+            this.currentSave = null;
+            console.log(`[SaveManager] 🗑️ 已清除所有存档 (${keysToRemove.length} 个)`);
         }
 
         /**

@@ -209,17 +209,40 @@
   // =======================
   // 1. 渲染对话列表
   // =======================
+  // =======================
+  // 1. 渲染对话列表 (已修改逻辑)
+  // =======================
   function renderList() {
     const container = document.getElementById('conversationList');
     container.innerHTML = '';
 
     currentUserConversations.forEach(conv => {
+      // ----------------------------------------------------
+      // 【新增逻辑】检查标志位可见性
+      // ----------------------------------------------------
+      if (conv.reqFlag) {
+        // 从 localStorage 获取标志位状态
+        const flagValue = localStorage.getItem(conv.reqFlag);
+
+        // 如果标志位不存在或者不是 'true'，直接 return 跳过渲染，不显示该对话
+        if (flagValue !== 'true') {
+          return;
+        }
+      }
+      // ----------------------------------------------------
+
       // 确保有消息
       if (!conv.messages || conv.messages.length === 0) return;
 
       const lastMsg = conv.messages[conv.messages.length - 1];
       const el = document.createElement('div');
       el.className = 'conv-item';
+
+      // 添加一个特殊类名，方便做“新消息”红点样式（可选）
+      if (conv.reqFlag) {
+        el.classList.add('conv-special');
+      }
+
       el.onclick = () => handleClick(conv, el);
 
       // 时间处理
@@ -235,9 +258,12 @@
 
       const convName = getLocalizedText(conv.conversationName);
 
+      // 【可选视觉优化】如果是刚刚解锁的黑客对话，给它加一个红点或NEW标记
+      const newBadge = conv.reqFlag ? `<span style="color:red; font-weight:bold; margin-left:5px;">●</span>` : '';
+
       el.innerHTML = `
       <div class="conv-header">
-        <span class="conv-title">${convName}</span>
+        <span class="conv-title">${convName} ${newBadge}</span>
         <span class="conv-time">${timeDisplay}</span>
       </div>
       <div class="conv-preview">${previewText}</div>

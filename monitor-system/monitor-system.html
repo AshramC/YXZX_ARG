@@ -8,6 +8,15 @@
 </head>
 <body>
 
+<script>
+    (function() {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('mode') === 'ending') {
+            document.body.classList.add('mode-ending');
+        }
+    })();
+</script>
+
 <div class="layout-container">
     <aside class="sidebar">
         <div class="brand">
@@ -131,6 +140,7 @@
 <script src="../tools/lang-switch.js"></script>
 <script src="../tools/config-loader.js"></script>
 <script src="../tools/monitor-generator.js"></script>
+<script src="./director-engine.js"></script>
 <script>
     // === 核心变量 ===
     let currentMapId = null;
@@ -217,27 +227,78 @@
         return { x: centerX, y: centerY, isStatic: true };
     }
 
-    // === [关键修改 1] 增强的配置加载器 ===
     window.reloadConfig = async function(lang) {
         try {
-            // 加载基础配置
-            await UnifiedLoader.load('monitor-config', 'MonitorConfig', 'ENCRYPTED_MONITOR_CONFIG', lang);
-            await UnifiedLoader.load('maps-config', 'MapConfig', 'ENCRYPTED_MAP_CONFIG', lang);
-            await UnifiedLoader.load('../school-system/school-config', 'SchoolSystemConfig', 'ENCRYPTED_SCHOOL_CONFIG', lang);
-            await UnifiedLoader.load('../school-system/characters-config', 'CharacterConfig', 'ENCRYPTED_CHAR_CONFIG', lang);
+            // 1. 提前获取模式状态
+            const urlParams = new URLSearchParams(window.location.search);
+            const isEndingMode = urlParams.get('mode') === 'ending';
 
-            // 运行生成器 (传入刚刚加载的 CharacterConfig)
-            if (window.MonitorGenerator) {
+            console.log(`[Loader] Mode Check: ${isEndingMode ? 'ENDING (Lightweight)' : 'NORMAL (Full)'}`);
+
+            // 2. 定义基础加载队列 (所有模式都需要的)
+            const loadPromises = [
+                UnifiedLoader.load('monitor-config', 'MonitorConfig', 'ENCRYPTED_MONITOR_CONFIG', lang),
+                UnifiedLoader.load('maps-config', 'MapConfig', 'ENCRYPTED_MAP_CONFIG', lang),
+                // 结局脚本和舞台坐标是 Ending 模式的核心
+                UnifiedLoader.load('ending-config', 'EndingConfig', 'ENCRYPTED_ENDING_CONFIG', lang),
+                UnifiedLoader.load('stage-config', 'StageConfig', 'ENCRYPTED_STAGE_CONFIG', lang),
+                // CharacterConfig 建议保留，因为 DirectorEngine 需要用它来显示角色的中文名
+                UnifiedLoader.load('../school-system/characters-config', 'CharacterConfig', 'ENCRYPTED_CHAR_CONFIG', lang)
+            ];
+
+            // 3. 【优化点】只有在正常模式下，才加载庞大的学校系统配置
+            if (!isEndingMode) {
+                loadPromises.push(
+                    UnifiedLoader.load('../school-system/school-config', 'SchoolSystemConfig', 'ENCRYPTED_SCHOOL_CONFIG', lang)
+                );
+            }
+
+            // 4. 执行加载
+            await Promise.all(loadPromises);
+
+            // 5. 【优化点】只在正常模式下运行生成器 (Ending模式不需要模拟全校师生移动)
+            if (!isEndingMode && window.MonitorGenerator) {
+                console.log("[Loader] Running MonitorGenerator...");
                 window.MonitorGenerator.run(
                     window.MonitorConfig,
                     window.SchoolSystemConfig,
                     window.MapConfig,
-                    window.CharacterConfig // <--- 关键传入
+                    window.CharacterConfig
                 );
             }
 
-            initSystem();
-        } catch(e) { console.error("Config Load Error:", e); }
+            // 6. 分流启动
+            if (isEndingMode) {
+                const outcome = urlParams.get('outcome');
+                const playlist = urlParams.get('playlist');
+
+                console.log(`[Monitor] Starting Director Engine...`);
+
+                setTimeout(() => {
+                    console.log("[Monitor] Checking for DirectorEngine..."); // 增加日志
+
+                    if (window.DirectorEngine) {
+                        console.log("[Monitor] Engine found. Launching sequence..."); // 增加日志
+                        DirectorEngine.start('ending', 'stage', {
+                            outcome: outcome,
+                            playlist: playlist
+                        });
+                    } else {
+                        // 【关键】如果没有找到引擎，报红错！
+                        console.error("[Monitor] CRITICAL ERROR: window.DirectorEngine is undefined!");
+                        document.body.innerHTML += `<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:red;background:black;padding:20px;z-index:99999;border:2px solid red;">ERROR: DirectorEngine Not Loaded</div>`;
+                    }
+                }, 500);
+            } else {
+                // 启动正常监控界面
+                initSystem();
+            }
+
+        } catch(e) {
+            console.error("Config Load Error:", e);
+            // 在屏幕上显示错误，方便调试
+            document.body.innerHTML += `<div style="color:red;position:fixed;top:0;background:black;z-index:9999;">LOAD ERROR: ${e.message}</div>`;
+        }
     };
 
     // ============================================================
@@ -370,6 +431,12 @@
     }
 
     function initSystem() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('mode') === 'ending') {
+            console.log("[System] initSystem blocked by Ending Mode.");
+            return;
+        }
+
         const userStr = sessionStorage.getItem('monitor_user');
         if (!userStr) { window.location.href = 'monitor-login.html'; return; }
 
@@ -650,6 +717,63 @@
         const lang = localStorage.getItem('app_lang') || 'cn';
         if (!window.MonitorConfig) await window.reloadConfig(lang);
         else initSystem();
+    })();
+</script>
+
+<script>
+    /**
+     * Debug 工具：结局跳过按钮
+     * 仅在 mode=ending 时注入
+     */
+    (function() {
+        const params = new URLSearchParams(window.location.search);
+
+        // 只有在结局模式下才显示此按钮
+        if (params.get('mode') === 'ending') {
+            const skipBtn = document.createElement('button');
+            skipBtn.innerText = "⏩ [DEBUG] SKIP ENDING";
+
+            // 设置样式：固定在右上角，醒目的红色
+            Object.assign(skipBtn.style, {
+                position: 'fixed',
+                top: '10px',
+                right: '10px',
+                zIndex: '999999',
+                background: 'rgba(255, 0, 0, 0.8)',
+                color: 'white',
+                border: '1px solid white',
+                padding: '8px 15px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '12px',
+                boxShadow: '0 0 10px rgba(0,0,0,0.5)'
+            });
+
+            // 点击事件处理
+            skipBtn.onclick = function() {
+                console.log("[Debug] User skipped the ending.");
+
+                // 1. 停止演出引擎 (如果已加载)
+                if (window.DirectorEngine && window.DirectorEngine.stop) {
+                    window.DirectorEngine.stop();
+                }
+
+                // 2. 获取当前应该触发的结局类型 (从 URL 参数读取)
+                // 如果没有指定，默认回退到 normal
+                const outcome = params.get('outcome') || 'normal';
+
+                // 3. 发送完成信号给父窗口 (CampusEngine)
+                if (window.parent) {
+                    console.log(`[Debug] Sending forced ENDING_COMPLETE signal: ${outcome}`);
+                    window.parent.postMessage({
+                        type: 'ENDING_COMPLETE',
+                        outcome: outcome
+                    }, '*');
+                }
+            };
+
+            // document.body.appendChild(skipBtn);
+        }
     })();
 </script>
 </body>
