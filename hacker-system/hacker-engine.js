@@ -146,8 +146,8 @@ class GameEngine {
         requestAnimationFrame((t) => this.gameLoop(t));
     }
 
-    // =========================================================================
-    // ★★★ 修复版：带死档搜寻功能的 initFromSave ★★★
+// =========================================================================
+    // ★★★ 最终修复版 (恢复标准时间) ★★★
     // =========================================================================
     initFromSave() {
         console.log("🔍 [Debug] 开始执行 initFromSave...");
@@ -155,9 +155,12 @@ class GameEngine {
         // 1. 先尝试获取当前的默认存档
         let save = window.SaveManager.currentSave;
 
-        // 【核心修复】：如果默认存档为空，尝试去读取 "LOCKED_STATE" 的专用存档
-        if (!save) {
-            console.log("⚠️ [Debug] 主存档为空，尝试搜寻锁定(死档)记录...");
+        // 【核心判断】：当前是独立运行的主窗口，还是被嵌入的小游戏 iframe？
+        const isStandalone = (window.self === window.top);
+
+        // 【逻辑分支 A】：如果是独立运行且主存档为空，尝试去搜寻“锁定(复仇)存档”
+        if (!save && isStandalone) {
+            console.log("⚠️ [Debug] 独立运行且主存档为空，尝试搜寻锁定(死档)记录...");
 
             // 临时切换 SaveManager 的目标 ID 去读那个特殊的 key
             window.SaveManager.setMapId('LOCKED_STATE');
@@ -166,61 +169,62 @@ class GameEngine {
                 console.log("✅ [Debug] 找到了锁定存档！");
                 save = window.SaveManager.currentSave;
             } else {
-                // 如果也没找到，把 ID 切回来，避免影响后续逻辑
                 console.log("❌ [Debug] 未找到锁定存档，确实是新游戏。");
                 window.SaveManager.setMapId(null);
             }
         }
+        // 【逻辑分支 B】：如果是小游戏模式，跳过死档搜寻
+        else if (!save && !isStandalone) {
+            console.log("🎮 [Debug] 小游戏模式运行中，等待数据注入...");
+        }
 
-        // 2. 如果经过上面的搜寻还是没有存档，则返回 false (开始新游戏)
+        // 2. 最终无存档检查
         if (!save) {
-            console.log("❌ [Debug] 最终确认无存档，进入新游戏流程");
+            console.log("❌ [Debug] 确认无有效存档，进入新游戏/注入流程");
             return false;
         }
 
-        console.log("📂 [Debug] 当前存档完整数据:", JSON.parse(JSON.stringify(save)));
+        console.log("📂 [Debug] 读取存档:", save.levelId, save.saveType);
 
-        // 3. 检测锁定状态与解锁条件
+        // 3. 检测锁定状态
         if (save.saveType === 'lockdown' || save.levelId === 'LOCKED_STATE') {
-            console.log("🔒 [Debug] 成功进入锁定状态检查逻辑");
 
-            // --- 修改日期逻辑 (确保你能通过调试) ---
-            // 建议：为了测试，先写死为 true，或者把日期改成 2020 年
-            const UNLOCK_DATE = new Date('2020-01-01T00:00:00');
+            // 双重保险：小游戏模式不响应锁定
+            if (!isStandalone) {
+                console.warn("⚠️ [Debug] 小游戏模式忽略锁定存档。");
+                return false;
+            }
+
+            // --- 日期逻辑 (已恢复为剧情原定时间) ---
+            const UNLOCK_DATE = new Date('2025-12-12T00:00:00');
             const NOW = new Date();
 
             console.log(`🕒 [Debug] 目标时间: ${UNLOCK_DATE.toLocaleString()}`);
-            console.log(`⚖️ [Debug] 时间判定结果: ${NOW >= UNLOCK_DATE}`);
+            console.log(`🕒 [Debug] 当前时间: ${NOW.toLocaleString()}`);
 
             if (NOW >= UNLOCK_DATE) {
-                console.log('✅ [Debug] 条件满足！准备显示任务简报');
+                console.log('✅ [Debug] 时间已到！显示复仇任务简报');
 
                 setTimeout(() => {
-                    if (typeof this.showMissionStartScreen === 'function') {
+                    if (this.showMissionStartScreen) {
                         this.showMissionStartScreen();
-                    } else {
-                        console.error('💥 [Debug] 找不到 showMissionStartScreen 方法！');
                     }
                 }, 500);
-
                 return true;
             } else {
-                console.log('⛔ [Debug] 时间未到，维持锁定状态');
+                console.log('⛔ [Debug] 时间未到，显示标准锁定页');
+                setTimeout(() => this.showFinalLockScreen(), 100);
+                return true;
             }
-
-            console.log('[Engine] 🔒 执行 showFinalLockScreen');
-            setTimeout(() => this.showFinalLockScreen(), 100);
-            return true;
         }
 
-        // 4. 正常读档逻辑 (处理普通关卡)
+        // 4. 正常读档逻辑
         if (!this.levelLibrary[save.levelId]) {
-            console.warn('[Engine] 存档关卡不存在，从头开始');
+            console.warn('[Engine] 关卡配置缺失，重置存档');
             window.SaveManager.clear();
             return false;
         }
 
-        console.log('[Engine] 📂 从存档恢复:', save);
         this.loadLevel(save.levelId);
         this.inventory = save.inventory || [];
         this.updateInventoryUi();
