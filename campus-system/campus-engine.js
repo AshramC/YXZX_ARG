@@ -558,6 +558,16 @@ const CampusEngine = (function() {
         clearSave();
         window.location.reload();
     }
+
+    function confirmReset() {
+        // 使用原生 confirm，防止游戏 UI 卡死导致自定义弹窗无法显示
+        const result = window.confirm("【警告】\n这将清除所有存档并重置到第一天。\n\n是否确定？");
+        if (result) {
+            reloadGame();
+        }
+    }
+
+
     // ============================================================
     // Phone System
     // ============================================================
@@ -1155,6 +1165,7 @@ const CampusEngine = (function() {
         togglePhone,
         debugSimulateScenario: simulateScenario,
         reloadGame,
+        confirmReset,
         showQrModal: showQrModal,
         hideQrModal: hideQrModal
     };
