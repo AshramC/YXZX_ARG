@@ -53,24 +53,75 @@ const CampusEngine = (function() {
     const els = {};
 
     // ============================================================
+    // Persistence (Save/Load System)
+    // ============================================================
+    const SAVE_KEY = 'campus_save_data_v1';
+
+    function saveState() {
+        try {
+            // 将 Set 转换为 Array 以便 JSON 序列化
+            const serializedState = JSON.stringify(state, (key, value) => {
+                if (value instanceof Set) {
+                    return { _type: 'Set', value: Array.from(value) };
+                }
+                return value;
+            });
+            localStorage.setItem(SAVE_KEY, serializedState);
+            console.log(`[System] Auto-saved at Day ${state.day}, Slot ${state.slotIndex}`);
+        } catch (e) {
+            console.error("[System] Save failed:", e);
+        }
+    }
+
+    function loadState() {
+        try {
+            const data = localStorage.getItem(SAVE_KEY);
+            if (!data) return false;
+
+            const parsed = JSON.parse(data, (key, value) => {
+                if (value && value._type === 'Set') {
+                    return new Set(value.value);
+                }
+                return value;
+            });
+
+            // 合并数据（保留 state 引用，覆盖属性）
+            Object.assign(state, parsed);
+            console.log(`[System] Game loaded from Day ${state.day}, Slot ${state.slotIndex}`);
+            return true;
+        } catch (e) {
+            console.error("[System] Load failed:", e);
+            return false;
+        }
+    }
+
+    function clearSave() {
+        localStorage.removeItem(SAVE_KEY);
+        // 清除其他相关的 flag (如结局相关)
+        localStorage.removeItem('WALL_SPECIAL_MODE');
+        localStorage.removeItem('WALL_PERFORMANCE_SEEN');
+    }
+
+    // ============================================================
     // Initialization
     // ============================================================
     async function init() {
         cacheDOM();
         bindUIEvents();
         BGMSystem.init();
-        BGMSystem.play();
 
         const lang = localStorage.getItem('app_lang') || 'cn';
         console.log(`[Engine] Booting in ${lang}...`);
 
         try {
+            // 1. 并行加载所有配置文件
             await Promise.all([
                 UnifiedLoader.load('campus-schedule-config', 'CampusScheduleConfig', 'ENCRYPTED_SCHEDULE_CONFIG', lang),
                 UnifiedLoader.load('campus-events-config', 'CampusEventsConfig', 'ENCRYPTED_EVENTS_CONFIG', lang),
                 UnifiedLoader.load('phone-config', 'PhoneConfig', 'ENCRYPTED_PHONE_CONFIG', lang)
             ]);
 
+            // 2. 检查配置是否加载成功
             if (window.CampusScheduleConfig && window.CampusEventsConfig) {
                 Config.schedule = window.CampusScheduleConfig;
                 Config.events = window.CampusEventsConfig;
@@ -80,16 +131,43 @@ const CampusEngine = (function() {
                 throw new Error("Config missing.");
             }
 
-            state.day = Config.schedule.config.initialDay || 1;
-            state.slotIndex = 0;
-            state.trust = {};
-            state.flags = new Set();
-            state.dailyExecutedEvents = new Set();
+            // 3. 尝试读取存档
+            if (loadState()) {
+                console.log("[Engine] Found save file. Resuming game...");
 
-            startDay(state.day);
+                // 3a. 恢复 UI 显示 (天数/星期)
+                els.uiDay.innerText = state.day < 10 ? `0${state.day}` : state.day;
+                const weeks = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+                els.uiWeek.innerText = weeks[state.day % 7] || 'UNK';
+
+                // 3b. 恢复 BGM (注意：部分浏览器可能仍需用户交互才能播放)
+                BGMSystem.play();
+
+                // 3c. 恢复手机红点状态
+                PhoneSystem.updateGlobalBadge();
+
+                // 3d. 立即处理当前时间段（恢复显示）
+                processCurrentSlot();
+
+            } else {
+                console.log("[Engine] No save file found. Starting new game...");
+
+                // 4. 没有存档，初始化新游戏状态
+                state.day = Config.schedule.config.initialDay || 1;
+                state.slotIndex = 0;
+                state.trust = {};
+                state.flags = new Set();
+                state.dailyExecutedEvents = new Set();
+                state.history = new Set();
+                state.phone = { inbox: [], unreadCount: 0 };
+
+                // 4a. 播放 BGM 并开始第一天
+                BGMSystem.play();
+                startDay(state.day);
+            }
 
         } catch (e) {
-            console.error(e);
+            console.error("[Engine] Init Error:", e);
             if(els.transText) els.transText.innerText = "SYSTEM ERROR";
             if(els.transLayer) els.transLayer.classList.add('active');
         }
@@ -132,6 +210,7 @@ const CampusEngine = (function() {
         state.day = day;
         state.slotIndex = 0;
         state.dailyExecutedEvents.clear();
+        saveState();
         els.uiDay.innerText = day < 10 ? `0${day}` : day;
         const weeks = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
         els.uiWeek.innerText = weeks[day % 7] || 'UNK';
@@ -175,6 +254,7 @@ const CampusEngine = (function() {
 
     function advanceTime() {
         state.slotIndex++;
+        saveState();
         processCurrentSlot();
     }
 
@@ -300,10 +380,12 @@ const CampusEngine = (function() {
     }
 
     function launchIframe(outcome, playlist) {
+        // 1. 序列化播放列表并构建URL
         const playlistStr = encodeURIComponent(JSON.stringify(playlist));
         const iframe = document.createElement('iframe');
         iframe.src = `../monitor-system/monitor-system.html?mode=ending&outcome=${outcome}&playlist=${playlistStr}`;
 
+        // 2. 设置 iframe 样式 (全屏覆盖，黑色背景)
         Object.assign(iframe.style, {
             position: 'fixed', top: '0', left: '0',
             width: '100vw', height: '100vh', border: 'none',
@@ -313,56 +395,69 @@ const CampusEngine = (function() {
 
         iframe.id = 'ending-iframe';
         document.body.appendChild(iframe);
-        // 淡入
+
+        // 淡入显示 (使用 requestAnimationFrame 确保 transition 生效)
         requestAnimationFrame(() => iframe.style.opacity = '1');
 
-        // 2. === 新增：定义消息监听器 ===
+        // 3. 定义消息监听器 (核心逻辑)
         const handleEndingMessage = async (event) => {
-            // 过滤消息类型
+            // 过滤消息类型，只处理 ENDING_COMPLETE
             if (event.data && event.data.type === 'ENDING_COMPLETE') {
-                console.log("[Engine] Received ending signal:", event.data.outcome);
+                console.log("[Engine] Received ending signal from Director.");
 
-                // A. 移除监听器
+                const finalOutcome = outcome;
+
+                console.log(`[Engine] Transitioning to Epilogue: ${finalOutcome}`);
+
+                // A. 移除监听器，防止重复触发
                 window.removeEventListener('message', handleEndingMessage);
 
                 // B. Iframe 淡出
                 iframe.style.opacity = '0';
 
-                // === 动画开始：显示转场层 ===
+                // C. 显示转场层 (防止点击穿透 + 视觉过渡)
                 if (els.transLayer && els.transText) {
                     els.transText.innerText = "三天后";
                     els.transLayer.classList.add('active');
+                    els.transLayer.style.display = 'flex'; // 强制显示，遮挡底层点击
                 }
 
-                await wait(1000); // 等待 Iframe 完全淡出
+                // 等待 Iframe 完全淡出 (1秒)
+                await wait(1000);
 
-                // 移除 Iframe DOM
+                // D. 从 DOM 中移除 Iframe
                 if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
 
-                // 清理 UI
+                // E. 清理 UI 状态 (隐藏手机、菜单、红点等)
                 resetStateForEpilogue();
 
-                // === 动画核心：日期跳变 (12 -> 15) ===
-                // 模拟时间流逝的效果
-                await performDateSkipAnimation(12, 15);
-
-                // === 动画结束：隐藏转场层 ===
-                if (els.transLayer) {
-                    els.transLayer.classList.remove('active');
+                // F. 执行日期跳变动画 (增加 Try-Catch 防止报错中断流程)
+                try {
+                    // 模拟时间流逝：从 12号 跳到 15号
+                    await performDateSkipAnimation(12, 15);
+                } catch(e) {
+                    console.error("[Engine] Date animation skipped:", e);
                 }
 
-                // C. 恢复 BGM
+                // ★★★ 修复核心 2：彻底隐藏转场层 ★★★
+                // 动画结束后，不仅要移除 active 类，还要 display:none
+                // 否则透明的 div 会挡在对话框上面，导致 Edge/Chrome 无法点击
+                if (els.transLayer) {
+                    els.transLayer.classList.remove('active');
+                    els.transLayer.style.display = 'none';
+                }
+
+                // G. 恢复 BGM (因为看结局动画时通常会暂停背景音乐)
                 BGMSystem.play();
 
-                // D. 执行后日谈脚本
-                // 稍微延迟一点，让玩家看清日期变成了 15 号
+                // H. 执行后日谈脚本 (稍微延迟确保UI刷新)
                 setTimeout(() => {
-                    triggerEpilogueEvent(event.data.outcome);
+                    triggerEpilogueEvent(finalOutcome);
                 }, 500);
             }
         };
 
-        // 3. 绑定监听
+        // 4. 绑定监听
         window.addEventListener('message', handleEndingMessage);
     }
 
@@ -460,11 +555,7 @@ const CampusEngine = (function() {
     function reloadGame() {
         // 视觉反馈：让按钮变一下或者加个 loading
         console.log("[Engine] Reloading system...");
-
-        localStorage.removeItem('WALL_PERFORMANCE_SEEN');
-
-        localStorage.removeItem('WALL_SPECIAL_MODE');
-
+        clearSave();
         window.location.reload();
     }
     // ============================================================
