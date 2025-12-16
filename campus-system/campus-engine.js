@@ -155,10 +155,11 @@ const CampusEngine = (function() {
         console.log(`[Engine] Slot: ${currentSlot.id}`);
 
         const onTransitionComplete = () => {
-            if (autoMsgItem) {
+            if (autoMsgItem && autoMsgItem.status === 'unread') {
                 console.log("[Engine] Auto-trigger detected.");
                 PhoneSystem.forceOpen(autoMsgItem, () => executeSlotActivity());
             } else {
+                // 如果没有自动消息，或者消息已经被玩家手动读过了，直接进入后续流程
                 executeSlotActivity();
             }
         };
