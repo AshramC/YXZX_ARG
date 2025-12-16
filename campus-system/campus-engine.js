@@ -892,8 +892,17 @@ const CampusEngine = (function() {
         state.runtime.currentEventScript = eventData.script;
 
         els.dialogLayer.classList.add('visible');
-        await executeScript(eventData.script);
+
+        // 【修改点 2】接收返回值并判断
+        const result = await executeScript(eventData.script);
+
         els.dialogLayer.classList.remove('visible');
+
+        // 如果脚本返回 'STOP'，则直接终止，不再推进时间
+        if (result === 'STOP') {
+            console.log("[Engine] Event triggered ending sequence. Halting time flow.");
+            return;
+        }
         advanceTime();
     }
 
@@ -935,7 +944,7 @@ const CampusEngine = (function() {
             }
             else if (line.cmd === 'play_ending') {
                 await triggerEndingSequence();
-                return;
+                return 'STOP';
             }
             else if (line.cmd === 'end_event') {
                 return;
