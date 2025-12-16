@@ -100,19 +100,74 @@ class GameEngine {
     }
 
     // === 初始化入口 ===
-    async init() {
+    async init(injectedData = null) {
+        // [新增] 1. 如果是 postMessage 再次触发的 init，直接使用传入的数据
+        // 这通常发生在 Campus 模式下，iframe 加载后父级发送初始化数据时
+        if (injectedData && injectedData.type === 'init') {
+            console.log('[Engine] 收到外部注入信号，跳过所有存档检查，强制加载注入关卡。');
+            this.handleInjectedInit(injectedData);
+            return;
+        }
+
         if (window.LevelConfig) {
             this.levelLibrary = window.LevelConfig;
 
-            // 优先级: forceMapId > 存档 > 默认第一关
+            // =========================================================
+            // [安全检查] 判定运行环境
+            // =========================================================
+            const isStandalone = (window.self === window.top);
+
+            // 额外的 URL 参数检查 (Campus 调用时通常会带上 mode=embedded，或者完全不带 map 参数)
+            const urlParams = new URLSearchParams(window.location.search);
+            const isEmbeddedMode = urlParams.get('mode') === 'embedded';
+
+            console.log(`[Engine] 启动环境检测: Standalone=${isStandalone}, EmbeddedTag=${isEmbeddedMode}`);
+
+            // =========================================================
+            // [FIX CORE] 核心修复：仅在“纯独立运行”模式下，优先检查全局锁定/结局状态
+            // 解决问题：玩家在锁定页刷新后，因 URL 参数或旧存档存在而导致回档
+            // =========================================================
+            if (isStandalone && !isEmbeddedMode && window.SaveManager) {
+                // A. 备份当前的 MapID (例如 URL 里带了 ?map=level_1)
+                const intendedMapId = this.forceMapId || null;
+
+                // B. 临时切换 SaveManager 的目标 ID 到全局锁定状态
+                window.SaveManager.setMapId('LOCKED_STATE');
+
+                // C. 检查是否存在结局存档
+                if (window.SaveManager.hasSave()) {
+                    console.log("[Engine] 🛑 (独立模式) 检测到结局锁定存档，拦截进入。");
+
+                    // D. 尝试加载锁定存档 (initFromSave 会读取 LOCKED_STATE 并显示锁定页/剧情页)
+                    const handled = this.initFromSave();
+
+                    if (handled) {
+                        return; // ⛔ 成功接管，终止后续所有加载逻辑
+                    }
+                } else {
+                    console.log("[Engine] (独立模式) 未检测到锁定存档，继续正常流程。");
+                }
+
+                // E. 如果没被拦截，务必恢复 SaveManager 的目标 ID，否则正常读档会失败
+                window.SaveManager.setMapId(intendedMapId);
+            } else {
+                console.log("[Engine] 🎮 检测到嵌入/Campus模式，跳过全局锁定检查。");
+            }
+            // =========================================================
+            // [FIX END] 修复结束
+            // =========================================================
+
+            // 2. 常规加载流程 (优先级: URL参数 > 普通存档 > 默认第一关)
             if (this.forceMapId && this.levelLibrary[this.forceMapId]) {
-                // URL参数指定的地图，跳过存档逻辑
-                console.log(`[Engine] 🎯 使URL参数加载地图: ${this.forceMapId}`);
+                // 情况 A: URL 指定了关卡
+                console.log(`[Engine] 🎯 URL参数加载: ${this.forceMapId}`);
                 this.loadLevel(this.forceMapId);
             } else if (!this.initFromSave()) {
-                // 无存档或正常读档失败，从第一关开始
+                // 情况 B: 尝试读取普通存档失败 (initFromSave 返回 false)
+                // 则加载配置列表中的第一关作为新游戏
                 const firstLevelId = Object.keys(this.levelLibrary)[0];
                 if (firstLevelId) {
+                    console.log(`[Engine] 🆕 新游戏/无存档，加载默认: ${firstLevelId}`);
                     this.loadLevel(firstLevelId);
                 } else {
                     console.error("Config is empty!");
@@ -122,6 +177,9 @@ class GameEngine {
             console.error("No LevelConfig found.");
         }
 
+        // =========================================================
+        // 事件监听与循环启动 (保持原有逻辑)
+        // =========================================================
         const monitor = document.querySelector('.monitor-wrapper');
         if (monitor) {
             monitor.addEventListener('mousedown', this.handleMouseDown);
@@ -137,13 +195,38 @@ class GameEngine {
         // 获取背景音乐元素
         this.bgm = document.getElementById('bgmAudio');
 
+        // 启动时钟
         setInterval(() => {
             const timeEl = document.getElementById('clock');
             if(timeEl) timeEl.innerText = `REC ${new Date().toTimeString().split(' ')[0]}`;
         }, 1000);
 
+        // 启动游戏主循环
         this.lastTime = performance.now();
         requestAnimationFrame((t) => this.gameLoop(t));
+    }
+
+    handleInjectedInit(data) {
+        const injectedLevels = data.node?.config?.injectedLevelData;
+        if (injectedLevels) {
+            // 覆盖全局配置
+            window.LevelConfig = injectedLevels;
+            this.levelLibrary = injectedLevels;
+
+            // 找到注入配置里的第一个关卡并加载
+            const levelIds = Object.keys(injectedLevels);
+            if (levelIds.length > 0) {
+                const targetId = levelIds[0];
+                console.log(`[Engine] 💉 加载注入关卡: ${targetId}`);
+                this.loadLevel(targetId);
+
+                // 同步背包数据
+                if (data.inventory) {
+                    this.inventory = data.inventory;
+                    this.updateInventoryUi();
+                }
+            }
+        }
     }
 
 // =========================================================================
@@ -2141,44 +2224,11 @@ class GameEngine {
 // ===========================================
 window.addEventListener('message', (event) => {
     const data = event.data;
-
-    // 1. 确保消息类型正确
     if (data && data.type === 'init') {
         console.log('[HackerEngine] 收到初始化信号:', data);
-
-        // 2. 提取父窗口注入的关卡数据 (Injected Data)
-        // 结构路径: data -> node -> config -> injectedLevelData
-        const injectedLevels = data.node?.config?.injectedLevelData;
-
-        if (injectedLevels) {
-            console.log('[HackerEngine] 检测到外部注入的关卡数据，正在应用...');
-
-            // 3. 覆盖全局配置 (关键！)
-            window.LevelConfig = injectedLevels;
-
-            // 4. 如果游戏引擎已经启动，强制重载新关卡
-            if (window.gameEngine) {
-                // 更新引擎内部的关卡库
-                window.gameEngine.levelLibrary = injectedLevels;
-
-                // 找到新配置里的第一个关卡ID（例如 "level_2"）
-                const levelIds = Object.keys(injectedLevels);
-                if (levelIds.length > 0) {
-                    const targetLevelId = levelIds[0];
-                    console.log(`[HackerEngine] 立即跳转至新关卡: ${targetLevelId}`);
-
-                    // 重新加载关卡
-                    window.gameEngine.loadLevel(targetLevelId);
-
-                    // 同步背包数据 (如果有)
-                    if (data.inventory) {
-                        window.gameEngine.inventory = data.inventory;
-                        window.gameEngine.updateInventoryUi();
-                    }
-                }
-            }
-        } else {
-            console.warn('[HackerEngine] 未检测到注入数据，维持默认关卡。');
+        if (window.gameEngine) {
+            // 直接调用 init 并传入数据，复用 init 顶部的判断逻辑
+            window.gameEngine.init(data);
         }
     }
 });
