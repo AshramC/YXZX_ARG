@@ -57,40 +57,34 @@
             display: flex;
             flex-direction: column;
             align-items: flex-end;
-            gap: 10px; /*稍微增加间距*/
+            gap: 10px;
             z-index: 20;
             pointer-events: none;
-            /* 优先使用 Impact 显示数字/英文字符，中文使用粗黑体 */
             font-family: 'Impact', 'SimHei', 'Heiti SC', sans-serif;
         }
 
         .control-item {
             background: black;
             color: white;
-            padding: 8px 20px; /* 稍微加宽一点，适应中文视觉平衡 */
-            font-size: 20px;   /* 中文可以稍微大一点 */
+            padding: 8px 20px;
+            font-size: 20px;
             letter-spacing: 2px;
             border: 2px solid white;
-
-            /* P5 核心风格：倾斜 */
             transform: skew(-15deg);
-
-            /* 红色阴影 */
             box-shadow: 4px 4px 0 rgba(217, 0, 24, 0.8);
-
             display: flex;
             align-items: center;
             gap: 12px;
         }
 
         .control-key {
-            color: #d90018; /* P5 红 */
-            font-weight: 900; /* 最粗体 */
+            color: #d90018;
+            font-weight: 900;
             border-bottom: 2px solid #d90018;
             padding-bottom: 2px;
         }
 
-        /* 简单的入场动画 */
+        /* 入场动画 */
         .controls-hud {
             animation: slideIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
             opacity: 0;
@@ -114,7 +108,7 @@
         <span>拖拽移动</span>
     </div>
     <div class="control-item">
-        <span class="control-key">点击右键</span>
+        <span class="control-key">双击 / 右键</span>
         <span>旋转碎片</span>
     </div>
 </div>
@@ -129,15 +123,13 @@
         cols: 3,
         snapDist: 25,
         jitterAmount: 45,
-        // 默认关卡图片列表
         levelImages: ['pic1.jpg'],
-        // 图片基础路径（可通过 init 消息设置，例如: 'campus-system/')
         basePath: ''
     };
 
     // === 游戏状态 ===
     let gameState = {
-        currentLevelIndex: 0, // 当前是第几张图 (0开始)
+        currentLevelIndex: 0,
         isGameActive: false,
         completedCount: 0
     };
@@ -154,22 +146,15 @@
 
             const incomingConfig = data.node?.config || {};
 
-            // 允许外部覆盖图片列表 (例如: images: ['a.jpg', 'b.jpg'])
-            // 如果没有传，就用默认的 pic1, pic2, pic3
             if (incomingConfig.images && Array.isArray(incomingConfig.images)) {
                 CONFIG.levelImages = incomingConfig.images;
             }
-
-            // 允许外部设置图片基础路径 (例如: basePath: 'campus-system/')
             if (incomingConfig.basePath) {
                 CONFIG.basePath = incomingConfig.basePath;
             }
-
-            // 允许外部覆盖难度
             if (incomingConfig.rows) CONFIG.rows = incomingConfig.rows;
             if (incomingConfig.cols) CONFIG.cols = incomingConfig.cols;
 
-            // 重置状态并开始
             gameState.currentLevelIndex = 0;
             startLevel();
         }
@@ -182,11 +167,9 @@
         const idx = gameState.currentLevelIndex;
         const total = CONFIG.levelImages.length;
 
-        // 更新 UI
         const badge = document.getElementById('level-badge');
         badge.innerText = `LEVEL ${idx + 1} / ${total}`;
 
-        // 检查是否所有关卡已完成 (虽然 handleLevelComplete 会检查，这里防守一下)
         if (idx >= total) {
             handleFinalVictory();
             return;
@@ -195,72 +178,36 @@
         const imgSrc = CONFIG.levelImages[idx];
         showLoading(`LOADING DATA: ${imgSrc}...`);
 
-        // 构建图片路径 - 处理 iframe 嵌入场景
         const resolveImagePath = (src) => {
-            // 如果已经是完整URL，直接返回
             if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:')) {
                 return src;
             }
-            // 如果设置了 basePath，使用它
             if (CONFIG.basePath) {
                 return CONFIG.basePath + src;
             }
-            // 尝试获取当前脚本/页面的基础路径
-            try {
-                const currentScript = document.currentScript;
-                if (currentScript && currentScript.src) {
-                    const scriptDir = currentScript.src.substring(0, currentScript.src.lastIndexOf('/') + 1);
-                    return scriptDir + src;
-                }
-            } catch(e) {}
-            // 默认使用相对于当前HTML的路径
             return src;
         };
 
         const fullImgSrc = resolveImagePath(imgSrc);
 
-        // 加载图片
         const imageObj = new Image();
         imageObj.onload = () => {
             hideLoading();
-            // 可选：随关卡增加难度
-            // if (idx === 1) { CONFIG.rows = 4; CONFIG.cols = 4; }
-            // if (idx === 2) { CONFIG.rows = 5; CONFIG.cols = 5; }
-
             initGame(imageObj);
         };
         imageObj.onerror = () => {
             console.error(`[Puzzle] Failed to load image: ${fullImgSrc}`);
-            
-            // 尝试跳过到下一关
+            // 错误处理：尝试跳过或报错
             if (gameState.currentLevelIndex + 1 < CONFIG.levelImages.length) {
                 showLoading(`ERROR: ${imgSrc} MISSING - SKIPPING...`);
                 setTimeout(() => {
                     gameState.currentLevelIndex++;
                     startLevel();
                 }, 2000);
-            } else if (gameState.currentLevelIndex > 0) {
-                // 如果是最后一关失败，但之前有成功的关卡，视为完成
-                showLoading(`ERROR: ${imgSrc} MISSING`);
-                setTimeout(() => {
-                    console.log('[Puzzle] Final level image missing, treating as complete.');
-                    window.parent.postMessage({
-                        type: 'minigame-complete',
-                        result: { success: true, skippedLevels: [imgSrc] }
-                    }, '*');
-                }, 2000);
             } else {
-                // 第一关就失败，显示错误并通知父窗口
-                showLoading(`ERROR: ${imgSrc} NOT FOUND<br><small style="font-size:16px">请检查图片文件是否存在</small>`);
-                setTimeout(() => {
-                    window.parent.postMessage({
-                        type: 'minigame-complete',
-                        result: { success: false, error: `Image not found: ${imgSrc}` }
-                    }, '*');
-                }, 3000);
+                showLoading(`ERROR: ${imgSrc} NOT FOUND`);
             }
         };
-        // 只有跨域资源才需要设置 crossOrigin
         if (fullImgSrc.startsWith('http')) {
             imageObj.crossOrigin = 'Anonymous';
         }
@@ -274,10 +221,8 @@
         const textStr = isLastLevel ? '碎片已恢复' : '已完成所有碎片恢复';
         const color = isLastLevel ? '#d90018' : '#ffffff';
 
-        // 播放文字动画
         playTextAnim(textStr, color, () => {
             if (isLastLevel) {
-                // 全部通关 -> 退出
                 setTimeout(() => {
                     console.log('[Puzzle] All levels done. Sending complete message...');
                     window.parent.postMessage({
@@ -286,17 +231,21 @@
                     }, '*');
                 }, 1000);
             } else {
-                // 还有下一关 -> 继续
                 gameState.currentLevelIndex++;
                 setTimeout(() => {
-                    startLevel(); // 加载下一张
+                    startLevel();
                 }, 1000);
             }
         });
     }
 
+    function handleFinalVictory() {
+        // 兜底逻辑，通常不会直接调这个
+        window.parent.postMessage({ type: 'minigame-complete', result: { success: true } }, '*');
+    }
+
     // ==========================================
-    // 3. Konva 游戏逻辑 (复用之前优化过的核心)
+    // 3. Konva 游戏逻辑
     // ==========================================
     function initGame(img) {
         gameState.isGameActive = true;
@@ -315,7 +264,7 @@
         layer = new Konva.Layer();
         stage.add(layer);
 
-        // 计算布局
+        // 计算缩放适应屏幕
         const targetW = stageW * 0.7;
         const targetH = stageH * 0.7;
         const scale = Math.min(targetW / img.width, targetH / img.height);
@@ -325,11 +274,11 @@
         const startX = (stageW - boardW) / 2;
         const startY = (stageH - boardH) / 2;
 
-        // 生成网格
         const gridPoints = [];
         const tileW = boardW / CONFIG.cols;
         const tileH = boardH / CONFIG.rows;
 
+        // 生成不规则网格点
         for (let r = 0; r <= CONFIG.rows; r++) {
             gridPoints[r] = [];
             for (let c = 0; c <= CONFIG.cols; c++) {
@@ -343,14 +292,14 @@
             }
         }
 
-        // 底图提示
+        // 底部提示图
         const hintImg = new Konva.Image({
             x: startX, y: startY, image: img,
             width: boardW, height: boardH, opacity: 0.1, listening: false
         });
         layer.add(hintImg);
 
-        // 生成碎片
+        // 创建碎片
         for (let r = 0; r < CONFIG.rows; r++) {
             for (let c = 0; c < CONFIG.cols; c++) {
                 createPiece(r, c, gridPoints, img, scale, startX, startY, tileW, tileH, stageW, stageH);
@@ -359,6 +308,7 @@
         layer.draw();
     }
 
+    // ★★★ 核心修复逻辑：碎片创建与交互 ★★★
     function createPiece(r, c, gridPoints, img, scale, startX, startY, tileW, tileH, stageW, stageH) {
         const pTL = gridPoints[r][c];
         const pTR = gridPoints[r][c+1];
@@ -406,27 +356,85 @@
         piece.position({x: randX, y: randY});
         piece.rotation(Math.floor(Math.random() * 4) * 90);
 
-        // 事件
-        piece.on('mouseover', () => document.body.style.cursor = 'grab');
-        piece.on('mouseout', () => document.body.style.cursor = 'default');
-        piece.on('dragstart', function() {
-            this.moveToTop(); this.shadowOpacity(0.6);
-            document.body.style.cursor = 'grabbing';
-        });
-        piece.on('dragend', function() {
-            this.shadowOpacity(0.3); document.body.style.cursor = 'grab';
-            checkSnap(this);
-        });
-        piece.on('contextmenu', function(e) {
-            e.evt.preventDefault();
-            if (!this.draggable()) return;
-            const currentRot = this.rotation();
+        // ==========================================
+        //  修复后的交互变量
+        // ==========================================
+        let dragStartX = 0;
+        let dragStartY = 0;
+        let lastTapTime = 0;
+
+        // 1. 旋转动画封装
+        const rotateMe = (node) => {
+            if (!node.draggable()) return;
+            const currentRot = node.rotation();
             const snappedRot = Math.round(currentRot / 90) * 90;
             const newRot = snappedRot + 90;
+
             new Konva.Tween({
-                node: this, duration: 0.2, rotation: newRot,
-                onFinish: () => checkSnap(this)
+                node: node,
+                duration: 0.2,
+                rotation: newRot,
+                easing: Konva.Easings.BackEaseOut,
+                onFinish: () => checkSnap(node)
             }).play();
+        };
+
+        // 2. 双击检测逻辑 (共用)
+        const handleDoubleTapCheck = () => {
+            const currentTime = new Date().getTime();
+            const timeDiff = currentTime - lastTapTime;
+
+            // 间隔小于 300ms 视为双击
+            if (timeDiff < 300 && timeDiff > 0) {
+                rotateMe(piece);
+                lastTapTime = 0; // 防止三连击触发两次
+            } else {
+                lastTapTime = currentTime;
+            }
+        };
+
+        // 事件绑定
+        piece.on('mouseover', () => document.body.style.cursor = 'grab');
+        piece.on('mouseout', () => document.body.style.cursor = 'default');
+
+        // --- 拖拽开始：记录坐标 ---
+        piece.on('dragstart', function() {
+            this.moveToTop();
+            this.shadowOpacity(0.6);
+            document.body.style.cursor = 'grabbing';
+            dragStartX = this.x();
+            dragStartY = this.y();
+        });
+
+        // --- 场景A：完全静止的点击 (PC/iPad 极稳的手) ---
+        piece.on('click tap', function(e) {
+            // 阻止冒泡
+            if (e && e.cancelBubble) e.cancelBubble = true;
+            handleDoubleTapCheck();
+        });
+
+        // --- 场景B：微小抖动的点击 (被视为拖拽结束) ---
+        piece.on('dragend', function() {
+            this.shadowOpacity(0.3);
+            document.body.style.cursor = 'grab';
+
+            const dx = this.x() - dragStartX;
+            const dy = this.y() - dragStartY;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+
+            // 容差 7 像素
+            if (dist < 7) {
+                handleDoubleTapCheck();
+            } else {
+                // 真正的拖拽移动
+                checkSnap(this);
+            }
+        });
+
+        // --- 场景C：右键旋转 (PC 备用) ---
+        piece.on('contextmenu', function(e) {
+            e.evt.preventDefault();
+            rotateMe(this);
         });
 
         layer.add(piece);
@@ -448,7 +456,7 @@
             node.moveToBottom();
             node.stroke(null);
             node.shadowOpacity(0);
-            node.off('dragstart dragmove dragend contextmenu mouseover mouseout');
+            node.off('dragstart dragmove dragend click tap contextmenu mouseover mouseout');
 
             new Konva.Tween({ node: node, duration: 0.1, scaleX: 1, scaleY: 1 }).play();
 
@@ -466,7 +474,7 @@
     // ==========================================
     function showLoading(text) {
         const el = document.getElementById('loading-layer');
-        el.innerHTML = text; // 使用 innerHTML 支持富文本错误提示
+        el.innerHTML = text;
         el.style.display = 'block';
         document.getElementById('game-box').style.opacity = 0;
     }
@@ -489,15 +497,12 @@
         text.offsetY(text.height() / 2);
         layer.add(text);
 
-        // 进场动画
         new Konva.Tween({
             node: text, duration: 0.4,
             opacity: 1, scaleX: 1.2, scaleY: 1.2,
             easing: Konva.Easings.BackEaseOut,
             onFinish: () => {
-                // 停留一会后执行回调
                 setTimeout(() => {
-                    // 出场动画
                     new Konva.Tween({
                         node: text, duration: 0.2, opacity: 0, scaleX: 2, scaleY: 2,
                         onFinish: () => {
