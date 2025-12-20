@@ -728,6 +728,10 @@ body.lang-en .lang-cn-only {
     z-index: 100;
     transition: all 0.3s ease;
     backdrop-filter: blur(5px);
+
+    white-space: nowrap;     /* 核心修复：强制文字不换行 */
+    flex-shrink: 0;          /* 核心修复：禁止 Flex 元素在空间不足时收缩 */
+    min-width: max-content;  /* 辅助修复：确保容器宽度永远等于内容所需宽度 */
 }
 .skip-game-btn:hover {
     background: rgba(239, 68, 68, 0.15);
@@ -1208,4 +1212,23 @@ body.lang-en .lang-cn-only {
     100% { opacity: 1; }
 }
 
+/* hacker-style.css 文件末尾 */
 
+/* 当屏幕（CSS像素）宽度小于 1000px 时（对应 1080p 屏幕开启 150%~175% 缩放的情况） */
+@media screen and (max-width: 1000px) {
+    .monitor-header {
+        /* 让头部内容稍微紧凑一点 */
+        font-size: 12px;
+    }
+
+    .skip-game-btn {
+        /* 调整位置，避免太靠边被切掉 */
+        right: 10px;
+        padding: 6px 10px;
+    }
+
+    /* 如果还是挤，可以选择在小屏下隐藏文字，只留图标 */
+     .skip-game-btn .skip-text {
+        display: none;
+    }
+}
