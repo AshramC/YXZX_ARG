@@ -2066,7 +2066,32 @@ class GameEngine {
         }
         if (this.domActions) this.domActions.innerHTML = '';
         this.isGameOver = true;
-    }
+
+        const UNLOCK_DATE = new Date('2025-12-12T00:00:00'); // 需与 initFromSave 中的时间保持一致
+
+        // 防止重复绑定，先清理旧的
+        if (this.lockTimer) clearInterval(this.lockTimer);
+
+        this.lockTimer = setInterval(() => {
+            const NOW = new Date();
+            if (NOW >= UNLOCK_DATE) {
+                console.log('✅ [System] 时间已到！自动解除锁定...');
+
+                // 1. 清除定时器
+                clearInterval(this.lockTimer);
+                this.lockTimer = null;
+
+                // 2. 隐藏锁定屏幕
+                if (lockScreen) {
+                    lockScreen.classList.remove('visible');
+                    setTimeout(() => lockScreen.classList.add('hidden'), 500);
+                }
+
+                // 3. 触发复仇任务简报
+                this.showMissionStartScreen();
+            }
+        }, 1000); // 每秒检查一次
+    }F
 
     delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
