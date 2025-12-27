@@ -22,6 +22,10 @@
             user-select: none;
         }
 
+        /* ==================== 多语言切换支持 ==================== */
+        body.lang-cn .lang-en-only { display: none !important; }
+        body.lang-en .lang-cn-only { display: none !important; }
+
         /* 背景层：手电筒图片 */
         #bg-layer {
             position: absolute; inset: 0;
@@ -168,14 +172,20 @@
 
     </style>
 </head>
-<body>
+<body class="lang-cn">
 
 <div class="vignette"></div>
 <div id="bg-layer"></div>
 
 <div id="panic-ui">
-    <div class="panic-title">快跑！！</div>
-    <div class="panic-sub">立刻离开宿舍！！</div>
+    <div class="panic-title">
+        <span class="lang-cn-only">快跑！！</span>
+        <span class="lang-en-only">RUN!!</span>
+    </div>
+    <div class="panic-sub">
+        <span class="lang-cn-only">立刻离开宿舍！！</span>
+        <span class="lang-en-only">GET OUT OF THE DORM!!</span>
+    </div>
 </div>
 
 <div id="time-lapse-ui">
@@ -184,32 +194,57 @@
 
 <div id="notification-ui">
     <div class="mail-card">
-        <div class="card-header">异象中学邮件中心 · 通知</div>
+        <div class="card-header">
+            <span class="lang-cn-only">异象中学邮件中心 · 通知</span>
+            <span class="lang-en-only">Anomaly High Mail Center · Notice</span>
+        </div>
 
         <div class="card-body">
-            <div class="recipient">致：吴宇 (2023012064)</div>
+            <div class="recipient">
+                <span class="lang-cn-only">致：吴宇 (2023012064)</span>
+                <span class="lang-en-only">To: Wu Yu (2023012064)</span>
+            </div>
             <div class="new-mail-alert">
-                <span>📩</span> 您有一封新的未读邮件
+                <span>📩</span>
+                <span class="lang-cn-only">您有一封新的未读邮件</span>
+                <span class="lang-en-only">You have 1 unread email</span>
             </div>
 
             <div class="mail-info">
-                <strong>发件人：</strong> 张晨<br>
-                <strong>发送时间：</strong> 2025-11-28 23:42<br>
-                <strong>主题：</strong> “只有你能帮我了”
+                <span class="lang-cn-only">
+                    <strong>发件人：</strong> 张晨<br>
+                    <strong>发送时间：</strong> 2025-11-28 23:42<br>
+                    <strong>主题：</strong> "只有你能帮我了"
+                </span>
+                <span class="lang-en-only">
+                    <strong>From:</strong> Zhang Chen<br>
+                    <strong>Sent:</strong> 2025-11-28 23:42<br>
+                    <strong>Subject:</strong> "You're the only one who can help me"
+                </span>
             </div>
 
             <div class="system-hint">
-                ⚠ 系统提示：请在终端重新登录吴宇的邮箱账户进行查阅
+                <span class="lang-cn-only">⚠ 系统提示：请在终端重新登录吴宇的邮箱账户进行查阅</span>
+                <span class="lang-en-only">⚠ Please log in to Wu Yu's email account at the terminal</span>
             </div>
         </div>
 
         <button class="btn-login" onclick="window.location.href='../terminal/index.html'">
-            返回统一终端首页
+            <span class="lang-cn-only">返回统一终端首页</span>
+            <span class="lang-en-only">Return to Terminal</span>
         </button>
     </div>
 </div>
 
 <script>
+    // ==================== 多语言初始化 ====================
+    (function() {
+        const lang = localStorage.getItem('app_lang') || 'cn';
+        document.body.classList.remove('lang-cn', 'lang-en');
+        document.body.classList.add('lang-' + lang);
+    })();
+
+    // ==================== 过场动画逻辑 ====================
     const START_DATE = new Date("2025-11-17").getTime();
     const END_DATE = new Date("2025-11-28").getTime();
 

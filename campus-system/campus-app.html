@@ -6,11 +6,16 @@
     <title>异象中学——校园生活模拟</title>
     <link rel="stylesheet" href="campus-style.css">
 </head>
-<body>
+<body class="lang-cn">
 
 <div class="stage-container">
     <div class="system-btn" onclick="CampusEngine.confirmReset()">
         ↻ RESET
+    </div>
+
+    <!-- 语言切换按钮 -->
+    <div class="lang-switch-btn" onclick="CampusEngine.toggleLanguage()">
+        [ <span id="btn-cn" class="active">CN</span> / <span id="btn-en">EN</span> ]
     </div>
 
     <div class="bg-layer" id="bgLayer">
@@ -40,6 +45,12 @@
     <div class="menu-layer" id="menuLayer">
         <div class="menu-list" id="menuList"></div>
         <div class="menu-deco-char">TAKE YOUR TIME</div>
+    </div>
+
+    <!-- 跳过按钮 (通关后解锁) -->
+    <div class="skip-btn" id="skipBtn" onclick="CampusEngine.toggleSkipMode()">
+        <span class="skip-icon">▶▶</span>
+        <span class="skip-text">SKIP</span>
     </div>
 
     <div class="dialog-layer" id="dialogLayer">
@@ -85,10 +96,19 @@
 
             <div class="ending-footer-panel">
                 <div class="ending-text-area">
-                    <h2 class="ending-congrats">恭喜大家通关了<br>“异象中学转校生失踪事件”</h2>
+                    <h2 class="ending-congrats">
+                        <span class="lang-cn-only">恭喜大家通关了<br>"异象中学转校生失踪事件"</span>
+                        <span class="lang-en-only">Congratulations on completing<br>"Anomaly High: Missing Transfer Student"</span>
+                    </h2>
                     <p class="ending-message">
-                        如果大家觉得好玩的话，可不可以帮我写一些反馈或者录制视频发在各平台上，或者是推荐给你们的朋友们。<br>
-                        这个对我很重要，谢谢大家！
+                        <span class="lang-cn-only">
+                            如果大家觉得好玩的话，可不可以帮我写一些反馈或者录制视频发在各平台上，或者是推荐给你们的朋友们。<br>
+                            这个对我很重要，谢谢大家！
+                        </span>
+                        <span class="lang-en-only">
+                            If you enjoyed the game, please consider leaving feedback, sharing videos on social media, or recommending it to friends.<br>
+                            It means a lot to me. Thank you!
+                        </span>
                     </p>
                     <button class="restart-btn p5-btn" onclick="CampusEngine.reloadGame()">
                         <span>↻ RESTART GAME</span>
@@ -100,9 +120,18 @@
                         <div class="qr-img-box">
                             <img src="../ending/xhs.jpg" alt="小红书">
                         </div>
-                        <span class="qr-label">小红书</span>
-                        <span class="qr-desc">作者小红书账号</span>
-                        <span class="tap-hint">(点击查看大图)</span>
+                        <span class="qr-label">
+                            <span class="lang-cn-only">小红书</span>
+                            <span class="lang-en-only">Xiaohongshu</span>
+                        </span>
+                        <span class="qr-desc">
+                            <span class="lang-cn-only">作者小红书账号</span>
+                            <span class="lang-en-only">Author's Xiaohongshu</span>
+                        </span>
+                        <span class="tap-hint">
+                            <span class="lang-cn-only">(点击查看大图)</span>
+                            <span class="lang-en-only">(Click to enlarge)</span>
+                        </span>
                     </div>
 
                     <div class="qr-card" onclick="CampusEngine.showQrModal('../ending/bili.jpg')">
@@ -110,8 +139,14 @@
                             <img src="../ending/bili.jpg" alt="Bilibili">
                         </div>
                         <span class="qr-label">Bilibili</span>
-                        <span class="qr-desc">作者Bilibili账号</span>
-                        <span class="tap-hint">(点击查看大图)</span>
+                        <span class="qr-desc">
+                            <span class="lang-cn-only">作者Bilibili账号</span>
+                            <span class="lang-en-only">Author's Bilibili</span>
+                        </span>
+                        <span class="tap-hint">
+                            <span class="lang-cn-only">(点击查看大图)</span>
+                            <span class="lang-en-only">(Click to enlarge)</span>
+                        </span>
                     </div>
                 </div>
             </div>

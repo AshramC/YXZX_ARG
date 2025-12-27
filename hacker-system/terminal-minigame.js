@@ -35,6 +35,7 @@ const TerminalGame = (function() {
     let inputState = 'COMMAND';     // 输入模式: 'COMMAND'(命令) | 'PASSWORD'(密码)
     let tempTargetUser = null;      // 记录正在给谁改密码
     let currentLevelConfig = null;  // 保存当前关卡配置，用于切换语言刷新侧边栏
+    let currentLevelMeta = {};
 
     // Matrix 游戏状态
     let matrixState = {
@@ -58,6 +59,7 @@ const TerminalGame = (function() {
     let promptEl = null;
 
     let startupTimer = null;
+
     // ===========================================
     // 多语言系统
     // ===========================================
@@ -76,8 +78,28 @@ const TerminalGame = (function() {
         }
     }
 
-    function toggleLanguage() {
-        setLanguage(currentLang === 'cn' ? 'en' : 'cn');
+    async function toggleLanguage() {
+        const newLang = currentLang === 'cn' ? 'en' : 'cn';
+        
+        // 重新加载对应语言的配置文件
+        if (window.reloadConfig) {
+            await window.reloadConfig(newLang);
+            
+            // 更新本地配置引用
+            CONFIG = window.TerminalMiniGameConfig || CONFIG;
+            UI_TEXT = CONFIG?.ui || {};
+            
+            // 重新加载当前关卡配置
+            const targetLevelId = currentLevelMeta?.levelId || 'default';
+            const levelConfig = CONFIG?.levels?.[targetLevelId] || CONFIG?.levels?.default;
+            if (levelConfig) {
+                currentLevelConfig = levelConfig;
+                FILE_SYSTEM = levelConfig.fileSystem || FILE_SYSTEM;
+                currentLevelMeta = levelConfig.meta || currentLevelMeta;
+            }
+        }
+        
+        setLanguage(newLang);
     }
 
     /**
@@ -124,7 +146,7 @@ const TerminalGame = (function() {
         outputEl.innerHTML = '';
     }
 
-// [新增] 更新侧边栏任务信息
+    // [新增] 更新侧边栏任务信息
     function updateSidebarInfo(levelConfig) {
         if (!levelConfig || !levelConfig.sidebar) return;
 
@@ -279,7 +301,6 @@ const TerminalGame = (function() {
 
         const fullPath = resolvePath(target.replace(/\/$/, ''));
         const node = getNode(fullPath);
-
 
         if (!node) {
             print(tt(`[错误] 未找到: ${target}`, `[ERROR] Not found: ${target}`), 'error');
@@ -536,7 +557,7 @@ const TerminalGame = (function() {
         }, 60);
     }
 
-// [修改后] cmdSu 函数
+    // [修改后] cmdSu 函数
     function cmdSu(user) {
         if (!user) {
             print(t('用法: su <用户名>', 'Usage: su <username>'), 'system');
@@ -571,7 +592,7 @@ const TerminalGame = (function() {
         }
     }
 
-// [修改后] cmdPasswd 函数
+    // [修改后] cmdPasswd 函数
     function cmdPasswd(targetUser) {
         // 1. 动态获取目标管理员名字
         const targetAdmin = (currentLevelMeta && currentLevelMeta.targetFileName) || 'root';
@@ -1149,9 +1170,11 @@ const TerminalGame = (function() {
                 cmdWhere();
                 break;
             case 'look':
+            case 'ls':
                 cmdLook();
                 break;
             case 'open':
+            case 'cd':
                 cmdOpen(args);
                 break;
             case 'back':
@@ -1188,7 +1211,6 @@ const TerminalGame = (function() {
     // 输入事件处理
     // ===========================================
     function setupInputHandlers() {
-        // 【修改点 1】使用 onkeydown 属性赋值，防止重复绑定
         inputEl.onkeydown = function(e) {
             if (matrixGameActive) {
                 e.preventDefault();
@@ -1203,7 +1225,6 @@ const TerminalGame = (function() {
                 if (inputState === 'COMMAND') {
                     executeCommand(value);
                 } else if (inputState === 'PASSWORD') {
-                    // 密码模式下，直接处理输入
                     handlePasswordInput(value);
                 }
             } else if (e.key === 'Tab' && inputState === 'COMMAND') {
@@ -1238,10 +1259,6 @@ const TerminalGame = (function() {
             }
         };
 
-        // 【修改点 2】对于 document 的点击事件，我们要小心处理
-        // 最好加上一个标志位判断，或者保留 addEventListener 但确保只加一次
-        // 由于上面我们用标志位 isInputHandlersSetup 控制了入口，这里可以保持原样
-        // 但为了保险，我们可以给 document 也加个命名函数以便移除（可选，暂时保持原样即可）
         document.addEventListener('click', function(e) {
             if (!e.target.closest('.manual-panel') && !matrixGameActive && inputEl) {
                 inputEl.focus();
@@ -1265,7 +1282,7 @@ const TerminalGame = (function() {
         print('', '');
 
         startupTimer = setTimeout(() => {
-            const hintCmd = currentLevelMeta.startHintCmd;
+            const hintCmd = currentLevelMeta.startHintCmd || 'open readme.txt';
             print(tt(`提示: 输入 '${hintCmd}' 阅读系统指引`,
                 `Tip: Type '${hintCmd}' to read system guide`), 'info');
             print('', '');
@@ -1308,8 +1325,7 @@ const TerminalGame = (function() {
     // ===========================================
     // 初始化
     // ===========================================
-    let currentLevelMeta = {};
-    function init(initData) {
+    async function init(initData) {
         console.log('[Terminal] Initializing with data:', initData);
 
         // 获取 DOM 引用
@@ -1322,9 +1338,13 @@ const TerminalGame = (function() {
             return;
         }
 
-        // 【新增】重置输入状态，防止上次游戏残留
+        // 重置输入状态，防止上次游戏残留
         inputState = 'COMMAND';
         tempTargetUser = null;
+        currentUser = 'guest';
+        adminPassword = null;
+        currentPath = '/';
+        decryptedPaths = {};
         if(promptEl) promptEl.textContent = 'guest@server:/$';
 
         if (startupTimer) {
@@ -1332,27 +1352,31 @@ const TerminalGame = (function() {
             startupTimer = null;
         }
         clearOutput();
+
+        // 【关键修复】确定目标语言并在需要时重新加载配置
+        const targetLang = initData?.lang || localStorage.getItem('app_lang') || 'cn';
+        if (targetLang !== currentLang && window.reloadConfig) {
+            console.log(`[Terminal] 语言切换: ${currentLang} -> ${targetLang}, 重新加载配置...`);
+            await window.reloadConfig(targetLang);
+        }
+
         // 加载配置
         const injectedConfig = initData?.node?.config?.injectedLevelData;
 
         if (injectedConfig) {
             console.log('[Terminal] ✅ 成功接收父窗口注入的关卡配置');
             CONFIG = injectedConfig;
-            // 可选：同时也更新到全局，以防有其他外部依赖
             window.TerminalMiniGameConfig = injectedConfig;
         } else {
             console.warn('[Terminal] ⚠️ 未检测到注入数据，回退到本地默认配置');
-            // 后备：读取本地 HTML 加载的默认配置
             CONFIG = window.TerminalMiniGameConfig || null;
         }
 
         let targetLevelId = 'default';
 
         if (initData?.levelId) {
-            // 情况 1: 直接通过 URL 参数或简单对象传入
             targetLevelId = initData.levelId;
         } else if (initData?.node?.config?.levelId) {
-            // 情况 2: 通过 Campus Engine 的剧情事件传入
             targetLevelId = initData.node.config.levelId;
         }
 
@@ -1362,17 +1386,12 @@ const TerminalGame = (function() {
             console.log('[Terminal] Config loaded from window.TerminalMiniGameConfig');
             UI_TEXT = CONFIG.ui || {};
 
-            // 根据关卡ID加载对应文件系统
             const levelConfig = CONFIG.levels?.[targetLevelId] || CONFIG.levels?.default;
             if (levelConfig && levelConfig.fileSystem) {
-                // [新增] 保存配置到全局变量，供 setLanguage 使用
                 currentLevelConfig = levelConfig;
-
                 FILE_SYSTEM = levelConfig.fileSystem;
                 currentLevelMeta = levelConfig.meta || {};
-
                 updateSidebarInfo(levelConfig);
-
             } else {
                 console.warn('[Terminal] No file system found in config, using default');
                 FILE_SYSTEM = getDefaultFileSystem();
@@ -1384,17 +1403,13 @@ const TerminalGame = (function() {
         }
 
         // 设置语言
-        const lang = initData?.lang || localStorage.getItem('app_lang') || 'cn';
-        setLanguage(lang);
+        setLanguage(targetLang);
 
         if (!isInputHandlersSetup) {
             setupInputHandlers();
             isInputHandlersSetup = true;
         }
         updateManualUI();
-
-        // 设置输入处理
-        setupInputHandlers();
 
         // 渲染启动界面
         renderStartup();
@@ -1405,9 +1420,8 @@ const TerminalGame = (function() {
     }
 
     function updateManualUI() {
-        // 1. 更新起始提示指令
         const hintEl = document.querySelector('.start-hint-cmd');
-        if (hintEl && currentLevelMeta.startHintCmd && currentLevelMeta.startHintCmd) {
+        if (hintEl && currentLevelMeta.startHintCmd) {
             hintEl.textContent = currentLevelMeta.startHintCmd;
         }
     }
@@ -1416,8 +1430,6 @@ const TerminalGame = (function() {
     // 默认文件系统（后备）
     // ===========================================
     function getDefaultFileSystem() {
-        // 这里放置默认的文件系统配置作为后备
-        // 实际使用时会从配置文件加载
         return {
             '/': {
                 type: 'folder',
@@ -1510,4 +1522,3 @@ window.addEventListener('message', (event) => {
         TerminalGame.init(data);
     }
 });
-

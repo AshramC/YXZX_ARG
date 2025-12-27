@@ -16,6 +16,46 @@ body {
 }
 
 /* =========================================
+   双语显示控制 (Bilingual Display Control)
+   ========================================= */
+body.lang-cn .lang-en-only,
+body.lang-en .lang-cn-only {
+    display: none !important;
+}
+
+/* 语言切换按钮 */
+.lang-switch-btn {
+    position: absolute;
+    top: 20px;
+    right: 140px;
+    z-index: 30000;
+    background: rgba(0, 0, 0, 0.8);
+    color: #888;
+    border: 2px solid #555;
+    padding: 8px 16px;
+    font-family: 'Impact', sans-serif;
+    font-size: 1rem;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.lang-switch-btn:hover {
+    border-color: white;
+    color: white;
+}
+
+.lang-switch-btn span {
+    transition: color 0.2s;
+}
+
+.lang-switch-btn span.active {
+    color: var(--p5-red);
+    font-weight: bold;
+}
+
+/* =========================================
    1. 基础舞台 (Stage & Background)
    ========================================= */
 .stage-container {
@@ -820,4 +860,71 @@ body {
 @keyframes fadeIn {
     from {opacity: 0;}
     to {opacity: 1;}
+}
+
+/* =========================================
+   11. 跳过按钮 (Skip Button - Unlocked after clear)
+   ========================================= */
+.skip-btn {
+    position: absolute;
+    bottom: 220px;
+    left: 5%;
+    z-index: 85;
+    background: black;
+    color: white;
+    border: 2px solid white;
+    padding: 8px 20px;
+    font-family: var(--font-impact);
+    font-size: 1rem;
+    letter-spacing: 1px;
+    transform: skew(-10deg);
+    box-shadow: 4px 4px 0 var(--p5-red);
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.skip-btn.visible {
+    display: flex;
+}
+
+.skip-btn.active {
+    background: var(--p5-red);
+    color: white;
+    border-color: white;
+    animation: skipPulse 0.8s ease-in-out infinite;
+}
+
+.skip-btn.active .skip-text::after {
+    content: 'SKIPPING...';
+}
+
+.skip-btn.active .skip-text {
+    font-size: 0;
+}
+
+.skip-btn.active .skip-text::after {
+    font-size: 1rem;
+}
+
+.skip-btn:hover {
+    transform: skew(-10deg) translate(-2px, -2px);
+    box-shadow: 6px 6px 0 var(--p5-red);
+}
+
+.skip-btn:active {
+    transform: skew(-10deg) translate(1px, 1px);
+    box-shadow: 2px 2px 0 var(--p5-red);
+}
+
+.skip-icon {
+    font-size: 0.9rem;
+}
+
+@keyframes skipPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
 }

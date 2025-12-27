@@ -85,76 +85,286 @@ body { background: var(--bg-color); height: 100vh; overflow: hidden; font-family
 #svgLayer { width: 100%; height: 100%; position: absolute; top:0; left:0; pointer-events: none; z-index: 2; }
 #entityLayer { z-index: 5; }
 
-/* --- 连线 --- */
-.link-line { stroke-width: 2px; fill: none; transition: all 0.5s ease; }
-.link-hidden { stroke: var(--safe-blue); stroke-dasharray: 6, 4; opacity: 0.6; }
-.link-open { stroke: #fff; opacity: 0.3; }
-.link-line.active {
-    stroke: #fff !important; stroke-width: 4px !important; stroke-dasharray: none !important;
-    opacity: 1 !important; filter: drop-shadow(0 0 5px #fff); z-index: 99;
+/* --- 连线 (统一视觉语言) --- */
+.link-line {
+    stroke-width: 2.5px;
+    fill: none;
+    transition: all 0.3s ease;
 }
 
-/* --- 区域与障碍 --- */
+/* 普通移动路径 - 白色实线 */
+.link-open {
+    stroke: rgba(255, 255, 255, 0.5);
+    stroke-linecap: round;
+}
+
+/* 潜行路径 - 蓝色虚线 + 流动动画 */
+.link-hidden {
+    stroke: var(--safe-blue);
+    stroke-dasharray: 8, 6;
+    opacity: 0.7;
+    animation: dashFlow 1.5s linear infinite;
+}
+
+/* Hack路径 - 黄色虚线 */
+.link-hack {
+    stroke: #f59e0b;
+    stroke-dasharray: 10, 5;
+    opacity: 0.8;
+    animation: hackPulse 1s ease-in-out infinite;
+}
+
+/* 需要钥匙路径 - 橙色点线 */
+.link-key {
+    stroke: #f97316;
+    stroke-dasharray: 3, 6;
+    opacity: 0.6;
+}
+
+/* 锁定路径 - 红色点线 */
+.link-locked {
+    stroke: #ef4444;
+    stroke-dasharray: 2, 6;
+    opacity: 0.4;
+}
+
+/* 路径高亮状态 - 通用 */
+.link-line.active {
+    stroke-width: 4px !important;
+    opacity: 1 !important;
+    z-index: 99;
+    stroke-dasharray: none !important;
+}
+
+/* 普通路径高亮 - 白色 */
+.link-open.active {
+    stroke: #fff !important;
+    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.9));
+}
+
+/* 潜行路径高亮 - 亮蓝色 */
+.link-hidden.active {
+    stroke: #60a5fa !important;
+    filter: drop-shadow(0 0 10px rgba(96, 165, 250, 0.9));
+    animation: none;
+}
+
+/* Hack路径高亮 - 亮黄色 */
+.link-hack.active {
+    stroke: #fcd34d !important;
+    filter: drop-shadow(0 0 10px rgba(252, 211, 77, 0.9));
+    animation: none;
+}
+
+/* 钥匙路径高亮 - 亮橙色 */
+.link-key.active {
+    stroke: #fdba74 !important;
+    filter: drop-shadow(0 0 10px rgba(253, 186, 116, 0.9));
+}
+
+/* 锁定路径不应该被高亮，但以防万一 */
+.link-locked.active {
+    stroke: #f87171 !important;
+    filter: drop-shadow(0 0 10px rgba(248, 113, 113, 0.9));
+}
+
+/* 路径流动动画 */
+@keyframes dashFlow {
+    0% { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: -28; }
+}
+
+@keyframes hackPulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+}
+
+/* --- 区域与障碍 (视觉降权 - 仅提供空间暗示) --- */
 .zone {
-    position: absolute; background: #1a1a1a; border: 1px solid #333; z-index: 1;
+    position: absolute;
+    background: rgba(15, 15, 15, 0.4);
+    border: 1px solid rgba(40, 40, 40, 0.5);
+    z-index: 1;
     transition: opacity 0.5s ease;
+    pointer-events: none;
 }
 .obstacle {
-    position: absolute; z-index: 3; border: 1px solid #444;
-    background: repeating-linear-gradient(45deg, #111, #111 10px, #222 10px, #222 20px);
-    box-shadow: 2px 2px 10px rgba(0,0,0,0.8);
-    transition: opacity 0.5s ease;
-}
-
-/* --- 节点 --- */
-.node {
-    position: absolute; width: 8px; height: 8px; background: #444; border-radius: 50%;
-    transform: translate(-50%, -50%); z-index: 4;
-    transition: opacity 0.5s ease;
-}
-.node.target { border: 2px solid var(--hacker-green); }
-
-/* 节点类型样式 */
-.node[data-node-type="hide"] {
-    border-color: #10b981 !important; /* 绿色边框，代表安全 */
-    box-shadow: 0 0 8px #10b981;
-    background-color: rgba(16, 185, 129, 0.2);
-}
-
-.node[data-node-type="hide"]::after {
-    content: "🛡️"; /* 或其他表示盾牌/掩体的图标 */
     position: absolute;
-    top: -15px;
+    z-index: 2;
+    border: none;
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(30, 30, 30, 0.3),
+        rgba(30, 30, 30, 0.3) 8px,
+        rgba(20, 20, 20, 0.3) 8px,
+        rgba(20, 20, 20, 0.3) 16px
+    );
+    opacity: 0.4;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+}
+
+/* --- 节点 (强化类型区分) --- */
+.node {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: transparent;
+    border: 2px solid #666;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    transition: all 0.3s ease;
+}
+
+/* 普通节点悬停效果 */
+.node:hover {
+    border-color: #888;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+/* 出口节点 - 绿色 + 脉冲动画 */
+.node.target,
+.node[data-node-type="exit"] {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--hacker-green);
+    background: rgba(0, 255, 65, 0.2);
+    box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
+    animation: exitPulse 2s ease-in-out infinite;
+}
+.node[data-node-type="exit"]::before {
+    content: "🎯";
+    position: absolute;
+    top: -20px;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 10px;
-    opacity: 0.8;
+    font-size: 12px;
+    filter: drop-shadow(0 0 3px rgba(0, 255, 65, 0.8));
 }
 
-.node[data-node-type="hack"] { border-color: #f59e0b; box-shadow: 0 0 15px #f59e0b; }
-.node[data-node-type="exit"] {
-    border: 2px dashed #00ff41; background: rgba(0, 255, 65, 0.2); width: 16px; height: 16px;
-    animation: spin 4s linear infinite;
+@keyframes exitPulse {
+    0%, 100% {
+        box-shadow: 0 0 10px rgba(0, 255, 65, 0.4), 0 0 20px rgba(0, 255, 65, 0.2);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(0, 255, 65, 0.6), 0 0 40px rgba(0, 255, 65, 0.3);
+    }
 }
 
-/* 道具高亮节点 */
-.node.has-loot { border-color: #ffffff; box-shadow: 0 0 15px #ffffff; z-index: 50; }
+/* =========================================
+   节点类型样式 (强化视觉区分)
+   ========================================= */
+
+/* 掩体节点 - 青色 + 盾牌图标 */
+.node[data-node-type="hide"] {
+    border: 2px solid #10b981 !important;
+    background: rgba(16, 185, 129, 0.15);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+}
+.node[data-node-type="hide"]::before {
+    content: "🛡️";
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    filter: drop-shadow(0 0 3px rgba(16, 185, 129, 0.8));
+}
+
+/* Hack节点 - 黄色 */
+.node[data-node-type="hack"] {
+    border: 2px solid #f59e0b !important;
+    background: rgba(245, 158, 11, 0.15);
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.5);
+}
+.node[data-node-type="hack"]::before {
+    content: "⚡";
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+}
+
+/* 小游戏节点 - 黄色 + 游戏图标 */
+.node[data-node-type="minigame"] {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #eab308 !important;
+    background: rgba(234, 179, 8, 0.15);
+    box-shadow: 0 0 12px rgba(234, 179, 8, 0.4);
+}
+.node[data-node-type="minigame"]::before {
+    content: "🎮";
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+}
+
+/* 道具节点 - 白色高亮 + 闪烁光点 */
+.node.has-loot {
+    border: 2px solid #ffffff !important;
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
+    z-index: 50;
+}
 .node.has-loot::after {
-    content: ""; position: absolute; width: 6px; height: 6px; background: #ffffff; border-radius: 50%;
-    top: 50%; left: 50%; transform: translate(-50%, -50%); animation: lootPulse 1.5s infinite;
+    content: "";
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: #ffffff;
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    animation: lootPulse 1.5s infinite;
 }
-.node.has-loot.looted { border-color: #555; box-shadow: none; }
-.node.has-loot.looted::after { display: none; }
+.node.has-loot::before {
+    content: "🔑";
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.8));
+}
 
-/* 目标节点高亮 */
-.node.active {
-    border-color: #fff !important; background-color: #333;
-    box-shadow: 0 0 15px #fff, inset 0 0 10px #fff;
-    transform: translate(-50%, -50%) scale(1.3) !important; z-index: 100 !important;
+/* 已拾取的道具节点 */
+.node.has-loot.looted {
+    border-color: #444 !important;
+    background: rgba(60, 60, 60, 0.2) !important;
+    box-shadow: none;
+    opacity: 0.5;
 }
-.node.active::before {
-    content: "▼"; position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
-    color: #fff; font-size: 12px; animation: bounce 0.5s infinite alternate;
+.node.has-loot.looted::after { display: none; }
+.node.has-loot.looted::before {
+    content: "✓";
+    color: #666;
+    filter: none;
+}
+
+/* 目标节点高亮 (鼠标悬停在按钮上时) */
+.node.active {
+    border-color: #fff !important;
+    background: rgba(255, 255, 255, 0.2) !important;
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.8), inset 0 0 8px rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%) scale(1.4) !important;
+    z-index: 100 !important;
+}
+.node.active::after {
+    content: "▼";
+    position: absolute;
+    top: -22px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #fff;
+    font-size: 14px;
+    animation: bounce 0.5s infinite alternate;
+    text-shadow: 0 0 8px #fff;
 }
 
 /* --- 角色 (Player & Guard) --- */
@@ -174,12 +384,53 @@ body { background: var(--bg-color); height: 100vh; overflow: hidden; font-family
 /* =========================================
    4. 视觉反馈 (Fog, Noise, Alerts)
    ========================================= */
-/* 战争迷雾 */
-.zone.fog-dim, .obstacle.fog-dim, .node.fog-dim, .link-line.fog-dim {
-    opacity: 0.5 !important; filter: grayscale(80%) brightness(0.7);
+/* =========================================
+   战争迷雾系统 (视觉层级优化)
+   ========================================= */
+
+/* 装饰元素迷雾 - 几乎完全隐藏 */
+.zone.fog-dim,
+.obstacle.fog-dim {
+    opacity: 0.15 !important;
+    filter: grayscale(100%) brightness(0.3);
 }
-.node.has-loot.fog-dim { opacity: 0.9 !important; filter: none !important; } /* 道具在迷雾中保持高亮 */
-.guard-dot.fog-hidden { opacity: 0 !important; transform: translate(-50%, -50%) scale(0); pointer-events: none; }
+
+/* 路径迷雾 - 明显变暗但保留轮廓 */
+.link-line.fog-dim {
+    opacity: 0.25 !important;
+    filter: grayscale(60%) brightness(0.6);
+}
+
+/* 节点迷雾 - 较弱变暗，保持可识别 */
+.node.fog-dim {
+    opacity: 0.4 !important;
+    filter: grayscale(50%) brightness(0.7);
+}
+
+/* 道具节点在迷雾中保持高亮 - 吸引玩家探索 */
+.node.has-loot.fog-dim {
+    opacity: 0.85 !important;
+    filter: none !important;
+}
+
+/* 出口节点在迷雾中仍然可见 - 提供方向感 */
+.node[data-node-type="exit"].fog-dim {
+    opacity: 0.7 !important;
+    filter: brightness(0.8);
+}
+
+/* 守卫迷雾 - 完全隐藏 */
+.guard-dot.fog-hidden {
+    opacity: 0 !important;
+    transform: translate(-50%, -50%) scale(0);
+    pointer-events: none;
+}
+
+/* 守卫远处变淡 (fog-dim 可选) */
+.guard-dot.fog-dim {
+    opacity: 0.3 !important;
+    filter: blur(1px);
+}
 
 /* 噪音预览圈 */
 .noise-preview {
@@ -288,17 +539,97 @@ body { background: var(--bg-color); height: 100vh; overflow: hidden; font-family
 
 .action-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
 .btn-opt {
-    background: #eee; color: #000; border: none; padding: 12px; border-radius: 6px;
-    cursor: pointer; font-weight: 600; font-size: 13px; transition: 0.2s;
-    text-align: left; display: flex; justify-content: space-between; align-items: center;
+    background: #eee;
+    color: #000;
+    border: none;
+    padding: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13px;
+    transition: all 0.2s ease;
+    text-align: left;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
 }
-.btn-opt:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(255,255,255,0.1); }
-.btn-opt:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(1); }
-.btn-sneak { background: #1e3a8a; color: #93c5fd; border: 1px dashed #3b82f6; } .btn-sneak:hover { background: #172554; }
-.btn-run { background: #fff; color: #000; } .btn-run:hover { background: #f3f4f6; }
-.btn-locked { background: #333; color: #777; border: 1px solid #444; }
-.btn-icon { font-size: 14px; margin-right: 6px; }
-.btn-cost { font-size: 10px; opacity: 0.6; font-family: monospace; }
+.btn-opt:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(255,255,255,0.1);
+}
+.btn-opt:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    filter: grayscale(1);
+}
+
+/* 普通移动按钮 - 白色 */
+.btn-run {
+    background: #fff;
+    color: #000;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+.btn-run:hover {
+    background: #f3f4f6;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+}
+
+/* 潜行按钮 - 蓝色虚线边框 */
+.btn-sneak {
+    background: rgba(30, 58, 138, 0.9);
+    color: #93c5fd;
+    border: 2px dashed #3b82f6;
+}
+.btn-sneak:hover {
+    background: #1e3a8a;
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+}
+
+/* Hack按钮 - 黄色 */
+.btn-hack {
+    background: rgba(120, 80, 0, 0.9);
+    color: #fcd34d;
+    border: 2px dashed #f59e0b;
+}
+.btn-hack:hover {
+    background: rgba(146, 98, 0, 1);
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.5);
+}
+
+/* 需要钥匙按钮 - 橙色 */
+.btn-key-needed {
+    background: rgba(80, 40, 0, 0.9);
+    color: #fdba74;
+    border: 2px dotted #f97316;
+}
+.btn-key-needed:hover {
+    background: rgba(100, 50, 0, 1);
+}
+
+/* 锁定按钮 - 红色/灰色 */
+.btn-locked {
+    background: #2a2a2a;
+    color: #666;
+    border: 2px dotted #ef4444;
+}
+.btn-locked:hover {
+    background: #333;
+}
+
+.btn-icon {
+    font-size: 14px;
+    margin-right: 6px;
+}
+.btn-cost {
+    font-size: 10px;
+    opacity: 0.7;
+    font-family: monospace;
+    padding: 2px 6px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+}
 
 /* =========================================
    7. 游戏结束与结算 (Game Over & Win)
@@ -859,32 +1190,36 @@ body.lang-en .lang-cn-only {
    13. 搜索节点样式 (Searchable Nodes)
    ========================================= */
 
-/* 可搜索节点视觉样式 */
+/* 可搜索节点 - 紫色 + 搜索图标 */
 .node[data-node-type="searchable"] {
     border: 2px solid #a855f7 !important;
-    box-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
-    background-color: rgba(168, 85, 247, 0.15);
+    background: rgba(168, 85, 247, 0.15);
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
 }
-.node[data-node-type="searchable"]::after {
+.node[data-node-type="searchable"]::before {
     content: "🔍";
     position: absolute;
-    top: -15px;
+    top: -18px;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 10px;
-    opacity: 0.8;
+    font-size: 11px;
+    filter: drop-shadow(0 0 3px rgba(168, 85, 247, 0.8));
 }
 
-/* 已搜索过的节点 */
-.node.searched {
-    border-color: #555 !important;
+/* 已搜索/已完成节点 - 灰色 + 勾选 */
+.node.searched,
+.node.completed {
+    border: 2px solid #444 !important;
+    background: rgba(60, 60, 60, 0.2) !important;
     box-shadow: none !important;
-    background-color: rgba(100, 100, 100, 0.2) !important;
-    opacity: 0.6;
+    opacity: 0.5;
 }
-.node.searched::after {
+.node.searched::before,
+.node.completed::before {
     content: "✓" !important;
-    color: #888;
+    color: #666;
+    font-size: 10px;
+    filter: none;
 }
 
 /* 搜索按钮样式 */
@@ -1211,6 +1546,122 @@ body.lang-en .lang-cn-only {
     0% { opacity: 0.6; }
     100% { opacity: 1; }
 }
+
+/* =========================================
+   18. 视觉图例说明 (Legend Panel)
+   ========================================= */
+
+.legend-toggle {
+    position: absolute;
+    top: 60px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid #333;
+    color: #888;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    z-index: 100;
+    pointer-events: auto;
+    transition: all 0.2s;
+}
+.legend-toggle:hover {
+    color: #fff;
+    border-color: #666;
+}
+
+.legend-panel {
+    position: absolute;
+    top: 100px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.9);
+    border: 1px solid #333;
+    padding: 15px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    z-index: 100;
+    pointer-events: auto;
+    min-width: 180px;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: all 0.3s ease;
+    pointer-events: none;
+}
+.legend-panel.visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.legend-title {
+    color: #888;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #333;
+    letter-spacing: 1px;
+}
+
+.legend-section {
+    margin-bottom: 12px;
+}
+.legend-section-title {
+    color: #666;
+    font-size: 10px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    color: #aaa;
+}
+
+.legend-icon {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+}
+
+/* 路径图例线条 */
+.legend-line {
+    width: 24px;
+    height: 2px;
+    border-radius: 1px;
+}
+.legend-line.open { background: rgba(255, 255, 255, 0.5); }
+.legend-line.sneak { 
+    background: repeating-linear-gradient(90deg, #3b82f6, #3b82f6 4px, transparent 4px, transparent 8px); 
+}
+.legend-line.hack { 
+    background: repeating-linear-gradient(90deg, #f59e0b, #f59e0b 5px, transparent 5px, transparent 10px); 
+}
+.legend-line.key { 
+    background: repeating-linear-gradient(90deg, #f97316, #f97316 2px, transparent 2px, transparent 6px); 
+}
+.legend-line.locked { 
+    background: repeating-linear-gradient(90deg, #ef4444, #ef4444 2px, transparent 2px, transparent 6px); 
+    opacity: 0.5;
+}
+
+/* 节点图例圆点 */
+.legend-node {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid;
+}
+.legend-node.normal { border-color: #666; background: transparent; }
+.legend-node.exit { border-color: #00ff41; background: rgba(0, 255, 65, 0.2); }
+.legend-node.hide { border-color: #10b981; background: rgba(16, 185, 129, 0.15); }
+.legend-node.search { border-color: #a855f7; background: rgba(168, 85, 247, 0.15); }
+.legend-node.loot { border-color: #fff; background: rgba(255, 255, 255, 0.1); }
 
 /* hacker-style.css 文件末尾 */
 

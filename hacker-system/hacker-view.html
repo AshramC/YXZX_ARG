@@ -53,6 +53,12 @@
 <!--            <button onclick="window.gameEngine?.skipLevel()">[SKIP]</button>-->
 <!--        </div>-->
 
+        <!-- 图例说明按钮 -->
+        <button class="legend-toggle" onclick="toggleLegend()">
+            <span class="lang-cn-only">[ ? 图例 ]</span>
+            <span class="lang-en-only">[ ? LEGEND ]</span>
+        </button>
+
         <!-- 玩家用：跳过游戏按钮 -->
         <div class="skip-game-btn" onclick="window.gameEngine?.showSkipConfirm()">
             <span class="skip-icon">⏭</span>
@@ -70,6 +76,78 @@
         <div id="entityLayer">
             <div id="thoughtBubble" class="thought-bubble hidden">
                 <div id="thoughtText" class="thought-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图例面板 -->
+    <div id="legendPanel" class="legend-panel">
+        <div class="legend-title">
+            <span class="lang-cn-only">图例说明</span>
+            <span class="lang-en-only">LEGEND</span>
+        </div>
+        
+        <div class="legend-section">
+            <div class="legend-section-title">
+                <span class="lang-cn-only">路径类型</span>
+                <span class="lang-en-only">PATHS</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-line open"></div>
+                <span class="lang-cn-only">普通移动</span>
+                <span class="lang-en-only">Normal</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-line sneak"></div>
+                <span class="lang-cn-only">潜行 (低噪音)</span>
+                <span class="lang-en-only">Sneak (Quiet)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-line hack"></div>
+                <span class="lang-cn-only">需要 Hack</span>
+                <span class="lang-en-only">Requires Hack</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-line key"></div>
+                <span class="lang-cn-only">需要钥匙</span>
+                <span class="lang-en-only">Requires Key</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-line locked"></div>
+                <span class="lang-cn-only">锁定</span>
+                <span class="lang-en-only">Locked</span>
+            </div>
+        </div>
+        
+        <div class="legend-section">
+            <div class="legend-section-title">
+                <span class="lang-cn-only">节点类型</span>
+                <span class="lang-en-only">NODES</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-node normal"></div>
+                <span class="lang-cn-only">普通节点</span>
+                <span class="lang-en-only">Normal</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-node exit"></div>
+                <span class="lang-cn-only">🎯 出口/目标</span>
+                <span class="lang-en-only">🎯 Exit/Goal</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-node hide"></div>
+                <span class="lang-cn-only">🛡️ 掩体</span>
+                <span class="lang-en-only">🛡️ Cover</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-node search"></div>
+                <span class="lang-cn-only">🔍 可搜索</span>
+                <span class="lang-en-only">🔍 Searchable</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-node loot"></div>
+                <span class="lang-cn-only">🔑 道具</span>
+                <span class="lang-en-only">🔑 Loot</span>
             </div>
         </div>
     </div>
@@ -164,6 +242,16 @@
 <script src="hacker-engine.js"></script>
 
 <script>
+    // ============================================================
+    // 图例面板切换
+    // ============================================================
+    function toggleLegend() {
+        const panel = document.getElementById('legendPanel');
+        if (panel) {
+            panel.classList.toggle('visible');
+        }
+    }
+
     // ============================================================
     // 配置加载与语言切换
     // ============================================================

@@ -47,6 +47,7 @@
             color: #d90018;
             text-transform: uppercase;
             text-shadow: 3px 3px 0 #000;
+            text-align: center;
         }
 
         /* === P5 风格操作指引 === */
@@ -94,9 +95,15 @@
         @keyframes slideIn {
             to { opacity: 1; transform: translateY(0); }
         }
+
+        /* === 双语显示控制 === */
+        body.lang-cn .lang-en-only,
+        body.lang-en .lang-cn-only {
+            display: none !important;
+        }
     </style>
 </head>
-<body>
+<body class="lang-cn">
 
 <div id="ui-layer">
     <div id="level-badge" class="level-indicator">LEVEL 1 / 3</div>
@@ -104,16 +111,31 @@
 
 <div class="controls-hud">
     <div class="control-item">
-        <span class="control-key">按住左键</span>
-        <span>拖拽移动</span>
+        <span class="control-key">
+            <span class="lang-cn-only">按住左键</span>
+            <span class="lang-en-only">HOLD LEFT</span>
+        </span>
+        <span>
+            <span class="lang-cn-only">拖拽移动</span>
+            <span class="lang-en-only">DRAG TO MOVE</span>
+        </span>
     </div>
     <div class="control-item">
-        <span class="control-key">双击 / 右键</span>
-        <span>旋转碎片</span>
+        <span class="control-key">
+            <span class="lang-cn-only">双击 / 右键</span>
+            <span class="lang-en-only">DBL-CLICK / RIGHT</span>
+        </span>
+        <span>
+            <span class="lang-cn-only">旋转碎片</span>
+            <span class="lang-en-only">ROTATE PIECE</span>
+        </span>
     </div>
 </div>
 
-<div id="loading-layer">初始化中...</div>
+<div id="loading-layer">
+    <span class="lang-cn-only">初始化中...</span>
+    <span class="lang-en-only">INITIALIZING...</span>
+</div>
 <div id="game-box"></div>
 
 <script>
@@ -134,7 +156,28 @@
         completedCount: 0
     };
 
+    // === 语言状态 ===
+    let currentLang = 'cn';
+
     let stage, layer;
+
+    // ==========================================
+    // 多语言工具函数
+    // ==========================================
+    function setLanguage(lang) {
+        currentLang = lang;
+        document.body.classList.remove('lang-cn', 'lang-en');
+        document.body.classList.add('lang-' + lang);
+    }
+
+    /**
+     * 获取双语文本
+     * @param {string} cn - 中文文本
+     * @param {string} en - 英文文本
+     */
+    function tt(cn, en) {
+        return currentLang === 'cn' ? cn : en;
+    }
 
     // ==========================================
     // 1. 通信模块
@@ -143,6 +186,10 @@
         const data = event.data;
         if (data && data.type === 'init') {
             console.log('[Puzzle] Init data received:', data);
+
+            // 处理语言设置
+            const lang = data.lang || localStorage.getItem('app_lang') || 'cn';
+            setLanguage(lang);
 
             const incomingConfig = data.node?.config || {};
 
@@ -176,7 +223,7 @@
         }
 
         const imgSrc = CONFIG.levelImages[idx];
-        showLoading(`LOADING DATA: ${imgSrc}...`);
+        showLoading(tt(`加载数据: ${imgSrc}...`, `LOADING DATA: ${imgSrc}...`));
 
         const resolveImagePath = (src) => {
             if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:')) {
@@ -199,13 +246,13 @@
             console.error(`[Puzzle] Failed to load image: ${fullImgSrc}`);
             // 错误处理：尝试跳过或报错
             if (gameState.currentLevelIndex + 1 < CONFIG.levelImages.length) {
-                showLoading(`ERROR: ${imgSrc} MISSING - SKIPPING...`);
+                showLoading(tt(`错误: ${imgSrc} 缺失 - 跳过中...`, `ERROR: ${imgSrc} MISSING - SKIPPING...`));
                 setTimeout(() => {
                     gameState.currentLevelIndex++;
                     startLevel();
                 }, 2000);
             } else {
-                showLoading(`ERROR: ${imgSrc} NOT FOUND`);
+                showLoading(tt(`错误: ${imgSrc} 未找到`, `ERROR: ${imgSrc} NOT FOUND`));
             }
         };
         if (fullImgSrc.startsWith('http')) {
@@ -218,7 +265,9 @@
         gameState.isGameActive = false;
 
         const isLastLevel = (gameState.currentLevelIndex + 1) >= CONFIG.levelImages.length;
-        const textStr = isLastLevel ? '碎片已恢复' : '已完成所有碎片恢复';
+        const textStr = isLastLevel
+            ? tt('碎片已恢复', 'FRAGMENT RESTORED')
+            : tt('已完成所有碎片恢复', 'ALL FRAGMENTS RESTORED');
         const color = isLastLevel ? '#d90018' : '#ffffff';
 
         playTextAnim(textStr, color, () => {
@@ -264,7 +313,6 @@
         layer = new Konva.Layer();
         stage.add(layer);
 
-        // 计算缩放适应屏幕
         const targetW = stageW * 0.7;
         const targetH = stageH * 0.7;
         const scale = Math.min(targetW / img.width, targetH / img.height);

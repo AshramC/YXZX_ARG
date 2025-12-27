@@ -4,8 +4,64 @@
  * 1. Hybrid Ending System (Playlist + Outcome)
  * 2. Enhanced Phone System (AutoTrigger, Priority, Effects)
  * 3. Robust Event Handling & MiniGame Integration
+ * 4. Full Bilingual Support (CN/EN)
  */
 const CampusEngine = (function() {
+
+    // ============================================================
+    // 多语言工具函数
+    // ============================================================
+    function getText(obj) {
+        if (!obj) return "";
+        if (typeof obj === 'string') return obj;
+        const lang = localStorage.getItem('app_lang') || 'cn';
+        return obj[lang] || obj['cn'] || "";
+    }
+
+    /**
+     * 快捷双语文本
+     * @param {string} cn - 中文文本
+     * @param {string} en - 英文文本
+     */
+    function tt(cn, en) {
+        const lang = localStorage.getItem('app_lang') || 'cn';
+        return lang === 'cn' ? cn : en;
+    }
+
+    /**
+     * 切换语言
+     */
+    function toggleLanguage() {
+        const current = localStorage.getItem('app_lang') || 'cn';
+        const newLang = current === 'cn' ? 'en' : 'cn';
+        localStorage.setItem('app_lang', newLang);
+
+        // 更新 body 类
+        document.body.classList.remove('lang-cn', 'lang-en');
+        document.body.classList.add('lang-' + newLang);
+
+        // 更新按钮高亮
+        const btnCn = document.getElementById('btn-cn');
+        const btnEn = document.getElementById('btn-en');
+        if (btnCn) btnCn.classList.toggle('active', newLang === 'cn');
+        if (btnEn) btnEn.classList.toggle('active', newLang === 'en');
+
+        console.log(`[Engine] Language switched to: ${newLang}`);
+    }
+
+    /**
+     * 初始化语言显示
+     */
+    function initLanguage() {
+        const lang = localStorage.getItem('app_lang') || 'cn';
+        document.body.classList.remove('lang-cn', 'lang-en');
+        document.body.classList.add('lang-' + lang);
+
+        const btnCn = document.getElementById('btn-cn');
+        const btnEn = document.getElementById('btn-en');
+        if (btnCn) btnCn.classList.toggle('active', lang === 'cn');
+        if (btnEn) btnEn.classList.toggle('active', lang === 'en');
+    }
 
     const BGMSystem = {
         audio: null,
@@ -49,6 +105,13 @@ const CampusEngine = (function() {
         history: new Set()
     };
 
+    // Skip System (unlocked after first clear)
+    const SKIP_UNLOCK_KEY = 'CAMPUS_GAME_CLEARED';
+    const skipState = {
+        unlocked: false,
+        active: false
+    };
+
     let Config = { schedule: null, events: null, phone: null };
     const els = {};
 
@@ -59,7 +122,6 @@ const CampusEngine = (function() {
 
     function saveState() {
         try {
-            // 将 Set 转换为 Array 以便 JSON 序列化
             const serializedState = JSON.stringify(state, (key, value) => {
                 if (value instanceof Set) {
                     return { _type: 'Set', value: Array.from(value) };
@@ -85,7 +147,6 @@ const CampusEngine = (function() {
                 return value;
             });
 
-            // 合并数据（保留 state 引用，覆盖属性）
             Object.assign(state, parsed);
             console.log(`[System] Game loaded from Day ${state.day}, Slot ${state.slotIndex}`);
             return true;
@@ -97,7 +158,6 @@ const CampusEngine = (function() {
 
     function clearSave() {
         localStorage.removeItem(SAVE_KEY);
-        // 清除其他相关的 flag (如结局相关)
         localStorage.removeItem('WALL_SPECIAL_MODE');
         localStorage.removeItem('WALL_PERFORMANCE_SEEN');
     }
@@ -108,20 +168,23 @@ const CampusEngine = (function() {
     async function init() {
         cacheDOM();
         bindUIEvents();
+        initLanguage();
         BGMSystem.init();
+
+        // Check if skip mode is unlocked
+        skipState.unlocked = localStorage.getItem(SKIP_UNLOCK_KEY) === 'true';
+        console.log(`[Skip] Unlocked: ${skipState.unlocked}`);
 
         const lang = localStorage.getItem('app_lang') || 'cn';
         console.log(`[Engine] Booting in ${lang}...`);
 
         try {
-            // 1. 并行加载所有配置文件
             await Promise.all([
                 UnifiedLoader.load('campus-schedule-config', 'CampusScheduleConfig', 'ENCRYPTED_SCHEDULE_CONFIG', lang),
                 UnifiedLoader.load('campus-events-config', 'CampusEventsConfig', 'ENCRYPTED_EVENTS_CONFIG', lang),
                 UnifiedLoader.load('phone-config', 'PhoneConfig', 'ENCRYPTED_PHONE_CONFIG', lang)
             ]);
 
-            // 2. 检查配置是否加载成功
             if (window.CampusScheduleConfig && window.CampusEventsConfig) {
                 Config.schedule = window.CampusScheduleConfig;
                 Config.events = window.CampusEventsConfig;
@@ -131,28 +194,20 @@ const CampusEngine = (function() {
                 throw new Error("Config missing.");
             }
 
-            // 3. 尝试读取存档
             if (loadState()) {
                 console.log("[Engine] Found save file. Resuming game...");
 
-                // 3a. 恢复 UI 显示 (天数/星期)
                 els.uiDay.innerText = state.day < 10 ? `0${state.day}` : state.day;
                 const weeks = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
                 els.uiWeek.innerText = weeks[state.day % 7] || 'UNK';
 
-                // 3b. 恢复 BGM (注意：部分浏览器可能仍需用户交互才能播放)
                 BGMSystem.play();
-
-                // 3c. 恢复手机红点状态
                 PhoneSystem.updateGlobalBadge();
-
-                // 3d. 立即处理当前时间段（恢复显示）
                 processCurrentSlot();
 
             } else {
                 console.log("[Engine] No save file found. Starting new game...");
 
-                // 4. 没有存档，初始化新游戏状态
                 state.day = Config.schedule.config.initialDay || 1;
                 state.slotIndex = 0;
                 state.trust = {};
@@ -161,7 +216,6 @@ const CampusEngine = (function() {
                 state.history = new Set();
                 state.phone = { inbox: [], unreadCount: 0 };
 
-                // 4a. 播放 BGM 并开始第一天
                 BGMSystem.play();
                 startDay(state.day);
             }
@@ -182,6 +236,7 @@ const CampusEngine = (function() {
         els.endingLayer = document.getElementById('endingLayer');
         els.endTitle = document.getElementById('endTitle');
         els.endDesc = document.getElementById('endDesc');
+        els.skipBtn = document.getElementById('skipBtn');
     }
 
     function bindUIEvents() {
@@ -238,7 +293,6 @@ const CampusEngine = (function() {
                 console.log("[Engine] Auto-trigger detected.");
                 PhoneSystem.forceOpen(autoMsgItem, () => executeSlotActivity());
             } else {
-                // 如果没有自动消息，或者消息已经被玩家手动读过了，直接进入后续流程
                 executeSlotActivity();
             }
         };
@@ -259,12 +313,13 @@ const CampusEngine = (function() {
     }
 
     function triggerDayTransition() {
-        playTransition("一天结束", 3000, () => {
+        const transText = tt("一天结束", "DAY ENDED");
+        playTransition(transText, 3000, () => {
             const nextDay = state.day + 1;
             if (Config.schedule.schedule[`Day_${nextDay}`]) {
                 startDay(nextDay);
             } else {
-                els.transText.innerText = "DEMO END";
+                els.transText.innerText = tt("演示结束", "DEMO END");
                 els.transLayer.classList.add('active');
             }
         });
@@ -273,77 +328,56 @@ const CampusEngine = (function() {
     function triggerEndingSequence() {
         BGMSystem.pause();
 
-        // 1. === 获取所有关键 Flag ===
-        const hasChen = state.flags.has("LINE_CHEN_COMPLETE");   // 证据线（生存必需）
-        const hasLin = state.flags.has("LINE_LIN_COMPLETE");     // 清白线（生存必需）
-        const hasHacker = state.flags.has("LINE_HACKER_COMPLETE"); // 舆论线（升级结局）
-        const hasLuyan = state.flags.has("LINE_LUYAN_COMPLETE");   // 证人线（完美必需）
+        const hasChen = state.flags.has("LINE_CHEN_COMPLETE");
+        const hasLin = state.flags.has("LINE_LIN_COMPLETE");
+        const hasHacker = state.flags.has("LINE_HACKER_COMPLETE");
+        const hasLuyan = state.flags.has("LINE_LUYAN_COMPLETE");
 
         if (hasHacker) {
             console.log("[Engine] Hacker line complete. Unlocking Wall Special Mode.");
             localStorage.setItem('WALL_SPECIAL_MODE', 'true');
         }
 
-        let outcome = "bad"; // 默认为坏结局
+        let outcome = "bad";
         let playlist = ["seq_intro"];
 
-        // 2. === 场景构建与逻辑判定 ===
-
-        // [阶段 0] 开场环境：如果控制了舆论，会有群众围观
         if (hasHacker || state.flags.has("FLAG_OPINION_WALL")) {
             playlist.push("task_spawn_crowd");
         }
 
-        // [阶段 1] 第一轮：陈雨菲反击
         playlist.push("seq_round_1_start");
         if (hasChen) {
             playlist.push("seq_round_1_counter");
         } else {
-            // --- 死局 1：没有视频证据，直接扭打被捕 ---
             console.log("[Ending] Failed at Round 1 (No Chen Evidence)");
             playlist.push("seq_bad_end_brawl");
-            // 直接触发坏结局，不再继续
             launchIframe("bad", playlist);
             return;
         }
 
-        // [阶段 2] 第二轮：林浩反击
         playlist.push("seq_round_2_trap");
         if (hasLin) {
             playlist.push("seq_round_2_block");
         } else {
-            // --- 死局 2：没有照片证据，被栽赃带走 ---
             console.log("[Ending] Failed at Round 2 (No Lin Evidence)");
             playlist.push("seq_bad_end_arrest");
-            // 直接触发坏结局，不再继续
             launchIframe("bad_arrest", playlist);
             return;
         }
 
-        // === 能走到这里，说明玩家已经“存活”，至少完成了 陈+林 (2线) ===
-        // 下面根据剩余线索决定结局档次
-
-        // [阶段 3] 第三轮：反派抵赖 (根据是否有黑客线，播放不同版本的抵赖)
         if (hasHacker) {
-            playlist.push("seq_round_3_denial"); // 有群众，有校园墙热搜，反派压力大
+            playlist.push("seq_round_3_denial");
         } else {
-            playlist.push("seq_round_3_denial_no_crowd"); // 无群众，反派嚣张
+            playlist.push("seq_round_3_denial_no_crowd");
         }
 
-        // [阶段 4] 最终裁决
         if (hasHacker && hasLuyan) {
-            // --- 完美结局 (4线全齐) ---
             outcome = "perfect";
-            playlist.push("seq_true_ending"); // 陆言出场作证
+            playlist.push("seq_true_ending");
         } else if (hasHacker) {
-            // --- 好结局 (3线：陈+林+黑客) ---
-            // 只有舆论压力，陆言没站出来，但足以达成艰难胜利
             outcome = "good";
-            // 演出上使用 Normal 的僵持（校领导介入），但在后续 epilogue 中会通过 outcome='good' 区分文本
             playlist.push("seq_normal_ending");
         } else {
-            // --- 普通结局 (2线：陈+林) ---
-            // 只有基础证据，陷入僵持
             outcome = "normal";
             playlist.push("seq_normal_ending");
         }
@@ -352,40 +386,35 @@ const CampusEngine = (function() {
         launchIframe(outcome, playlist);
     }
 
-    // 在 CampusEngine 内部
     function simulateScenario(scenarioType) {
         console.log(`[Debug] Simulating Scenario: ${scenarioType}`);
         state.flags.clear();
         BGMSystem.pause();
 
         switch (scenarioType) {
-            case 'perfect': // 4线全齐
+            case 'perfect':
                 state.flags.add("LINE_CHEN_COMPLETE").add("LINE_LIN_COMPLETE").add("LINE_HACKER_COMPLETE").add("LINE_LUYAN_COMPLETE");
                 break;
-            case 'good': // 3线 (缺陆言)
+            case 'good':
                 state.flags.add("LINE_CHEN_COMPLETE").add("LINE_LIN_COMPLETE").add("LINE_HACKER_COMPLETE");
                 break;
-            case 'normal': // 2线 (基础存活)
+            case 'normal':
                 state.flags.add("LINE_CHEN_COMPLETE").add("LINE_LIN_COMPLETE");
                 break;
-            case 'bad_brawl': // 0线 (第一轮死)
-                // 没有任何 Flag
+            case 'bad_brawl':
                 break;
-            case 'bad_arrest': // 1线 (第二轮死)
+            case 'bad_arrest':
                 state.flags.add("LINE_CHEN_COMPLETE");
-                // 缺 LINE_LIN_COMPLETE
                 break;
         }
         triggerEndingSequence();
     }
 
     function launchIframe(outcome, playlist) {
-        // 1. 序列化播放列表并构建URL
         const playlistStr = encodeURIComponent(JSON.stringify(playlist));
         const iframe = document.createElement('iframe');
         iframe.src = `../monitor-system/monitor-system.html?mode=ending&outcome=${outcome}&playlist=${playlistStr}`;
 
-        // 2. 设置 iframe 样式 (全屏覆盖，黑色背景)
         Object.assign(iframe.style, {
             position: 'fixed', top: '0', left: '0',
             width: '100vw', height: '100vh', border: 'none',
@@ -396,12 +425,9 @@ const CampusEngine = (function() {
         iframe.id = 'ending-iframe';
         document.body.appendChild(iframe);
 
-        // 淡入显示 (使用 requestAnimationFrame 确保 transition 生效)
         requestAnimationFrame(() => iframe.style.opacity = '1');
 
-        // 3. 定义消息监听器 (核心逻辑)
         const handleEndingMessage = async (event) => {
-            // 过滤消息类型，只处理 ENDING_COMPLETE
             if (event.data && event.data.type === 'ENDING_COMPLETE') {
                 console.log("[Engine] Received ending signal from Director.");
 
@@ -409,55 +435,41 @@ const CampusEngine = (function() {
 
                 console.log(`[Engine] Transitioning to Epilogue: ${finalOutcome}`);
 
-                // A. 移除监听器，防止重复触发
                 window.removeEventListener('message', handleEndingMessage);
 
-                // B. Iframe 淡出
                 iframe.style.opacity = '0';
 
-                // C. 显示转场层 (防止点击穿透 + 视觉过渡)
                 if (els.transLayer && els.transText) {
-                    els.transText.innerText = "三天后";
+                    els.transText.innerText = tt("三天后", "THREE DAYS LATER");
                     els.transLayer.classList.add('active');
-                    els.transLayer.style.display = 'flex'; // 强制显示，遮挡底层点击
+                    els.transLayer.style.display = 'flex';
                 }
 
-                // 等待 Iframe 完全淡出 (1秒)
                 await wait(1000);
 
-                // D. 从 DOM 中移除 Iframe
                 if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
 
-                // E. 清理 UI 状态 (隐藏手机、菜单、红点等)
                 resetStateForEpilogue();
 
-                // F. 执行日期跳变动画 (增加 Try-Catch 防止报错中断流程)
                 try {
-                    // 模拟时间流逝：从 12号 跳到 15号
                     await performDateSkipAnimation(12, 15);
                 } catch(e) {
                     console.error("[Engine] Date animation skipped:", e);
                 }
 
-                // ★★★ 修复核心 2：彻底隐藏转场层 ★★★
-                // 动画结束后，不仅要移除 active 类，还要 display:none
-                // 否则透明的 div 会挡在对话框上面，导致 Edge/Chrome 无法点击
                 if (els.transLayer) {
                     els.transLayer.classList.remove('active');
                     els.transLayer.style.display = 'none';
                 }
 
-                // G. 恢复 BGM (因为看结局动画时通常会暂停背景音乐)
                 BGMSystem.play();
 
-                // H. 执行后日谈脚本 (稍微延迟确保UI刷新)
                 setTimeout(() => {
                     triggerEpilogueEvent(finalOutcome);
                 }, 500);
             }
         };
 
-        // 4. 绑定监听
         window.addEventListener('message', handleEndingMessage);
     }
 
@@ -467,31 +479,22 @@ const CampusEngine = (function() {
     function resetStateForEpilogue() {
         console.log("[Engine] Cleaning up UI for Epilogue...");
 
-        // 1. 强制关闭手机界面
         els.phoneLayer.classList.remove('active');
 
-        // 2. 清空手机数据 (防止红点残留或旧消息弹出)
         state.phone.inbox = [];
         state.phone.unreadCount = 0;
-        PhoneSystem.updateGlobalBadge(); // 强制刷新红点状态（会消失）
-        els.phoneBtn.classList.remove('shaking'); // 停止震动
+        PhoneSystem.updateGlobalBadge();
+        els.phoneBtn.classList.remove('shaking');
         els.phoneLayer.classList.remove('active');
         els.menuLayer.classList.remove('active');
 
-        // 3. 强制关闭选项菜单 (如果是在选项中触发的结局)
         els.menuLayer.classList.remove('active');
-        els.menuList.innerHTML = ''; // 清空选项内容
-
-
-        // 4. (可选) 隐藏部分 HUD，让玩家专注于对话
-        // if (els.phoneBtn) els.phoneBtn.style.display = 'none';
-        // if (els.uiTimeSlot) els.uiTimeSlot.innerText = "END";
+        els.menuList.innerHTML = '';
     }
 
     async function triggerEpilogueEvent(outcome) {
         console.log(`[Engine] Director returned outcome: ${outcome}`);
 
-        // eventId 依然保持 epilogue_perfect 等格式
         const eventId = `epilogue_${outcome}`;
         console.log(`[Engine] Playing Epilogue Event: ${eventId}`);
 
@@ -499,35 +502,44 @@ const CampusEngine = (function() {
 
         if (eventData) {
             els.dialogLayer.classList.add('visible');
+            // Show skip button if unlocked
+            if (skipState.unlocked && els.skipBtn) {
+                els.skipBtn.classList.add('visible');
+            }
             await executeScript(eventData.script);
             els.dialogLayer.classList.remove('visible');
+            // Hide skip button and reset
+            if (els.skipBtn) els.skipBtn.classList.remove('visible');
+            skipState.active = false;
+            updateSkipButtonUI();
 
-            // ★★★ 修改点：将 outcome 传递给 handleGameComplete
             handleGameComplete(outcome);
         } else {
             console.warn(`[Engine] Missing epilogue for: ${outcome}, falling back to normal.`);
-            // 兜底逻辑
             const fallbackEvent = Config.events.events['epilogue_normal'];
             if (fallbackEvent) {
                 await executeScript(fallbackEvent.script);
             }
-            // 兜底也传 outcome (或者默认 normal)
             handleGameComplete(outcome || 'normal');
         }
     }
+
     function handleGameComplete(outcome) {
         console.log(`[Engine] Game Over (${outcome}). Showing Ending Screen...`);
 
-        // 1. 定义背景图映射 (确保文件名和你的实际文件一致)
+        // Unlock skip mode for future playthroughs
+        localStorage.setItem(SKIP_UNLOCK_KEY, 'true');
+        skipState.unlocked = true;
+        console.log('[Skip] Mode unlocked for future playthroughs.');
+
         const bgMap = {
             'perfect': '../ending/perfect.jpg',
-            'good':    '../ending/good.jpg',   // 假设 good 结局也有图
+            'good':    '../ending/good.jpg',
             'normal':  '../ending/normal.jpg',
-            'bad':     '../ending/bad.jpg',     // 假设 bad 结局也有图
-            'bad_arrest': '../ending/bad.jpg'   // 坏结局共用
+            'bad':     '../ending/bad.jpg',
+            'bad_arrest': '../ending/bad.jpg'
         };
 
-        // 2. 获取图片 URL，如果没有匹配则使用 normal
         const bgUrl = bgMap[outcome] || '../ending/normal.jpg';
         const endingBgEl = document.getElementById('endingBg');
 
@@ -535,33 +547,35 @@ const CampusEngine = (function() {
             endingBgEl.style.backgroundImage = `url('${bgUrl}')`;
         }
 
-        // 3. (可选) 修改大标题
         const titleEl = document.getElementById('endTitle');
         if (titleEl) {
-            if (outcome === 'perfect') titleEl.innerText = "完美结局";
-            else if (outcome === 'good') titleEl.innerText = "好结局";
-            else if (outcome === 'normal') titleEl.innerText = "普通结局";
-            else if (outcome === 'bad' || outcome === 'bad_arrest') titleEl.innerText = "坏结局";
-            else titleEl.innerText = "CASE CLOSED";
+            const titleMap = {
+                'perfect': tt("完美结局", "PERFECT ENDING"),
+                'good': tt("好结局", "GOOD ENDING"),
+                'normal': tt("普通结局", "NORMAL ENDING"),
+                'bad': tt("坏结局", "BAD ENDING"),
+                'bad_arrest': tt("坏结局", "BAD ENDING")
+            };
+            titleEl.innerText = titleMap[outcome] || tt("结局", "ENDING");
         }
 
-        // 4. 显示结局层
         if(els.endingLayer) els.endingLayer.classList.add('active');
 
-        // 5. 清理底层 UI
         resetStateForEpilogue();
     }
 
     function reloadGame() {
-        // 视觉反馈：让按钮变一下或者加个 loading
         console.log("[Engine] Reloading system...");
         clearSave();
         window.location.reload();
     }
 
     function confirmReset() {
-        // 使用原生 confirm，防止游戏 UI 卡死导致自定义弹窗无法显示
-        const result = window.confirm("【警告】\n这将清除所有存档并重置到第一天。\n\n是否确定？");
+        const confirmMsg = tt(
+            "【警告】\n这将清除所有存档并重置到第一天。\n\n是否确定？",
+            "【WARNING】\nThis will clear all save data and reset to Day 1.\n\nAre you sure?"
+        );
+        const result = window.confirm(confirmMsg);
         if (result) {
             reloadGame();
         }
@@ -618,7 +632,6 @@ const CampusEngine = (function() {
 
             if (validCandidates.length === 0) return null;
 
-            // Calculate Priority
             validCandidates.forEach(item => {
                 let score = 0;
                 const charMap = {'陈雨菲':'evt_chen', '林浩':'evt_lin', '陆言':'evt_luyan', '匿名黑客':'evt_hacker'};
@@ -705,7 +718,7 @@ const CampusEngine = (function() {
                 if (item.status === 'replied') badgeHtml = `<div style="font-size:0.8rem;color:#999;">✔</div>`;
 
                 el.innerHTML = `
-                    <div class="contact-avatar">${item.contact.substring(0,2)}</div>
+                    <div class="contact-avatar">${getText(item.contact).substring(0,2)}</div>
                     <div class="contact-info">
                         <div class="c-name">${getText(item.contact)}</div>
                         <div class="c-preview">${getText(item.preview)}</div>
@@ -726,9 +739,9 @@ const CampusEngine = (function() {
             els.chatInput.innerHTML = '';
 
             if (item.status === 'expired') {
-                this.addBubble("Message Expired.", 'system');
+                this.addBubble(tt("消息已过期", "Message Expired."), 'system');
             } else if (item.status === 'replied') {
-                this.addBubble("Conversation Ended.", 'system');
+                this.addBubble(tt("对话已结束", "Conversation Ended."), 'system');
             } else {
                 if (item.status === 'unread') {
                     item.status = 'read';
@@ -835,7 +848,7 @@ const CampusEngine = (function() {
         els.menuLayer.classList.add('active');
 
         if (!events || events.length === 0) {
-            addMenuItem("Free Time", () => { hideMenu(); advanceTime(); });
+            addMenuItem(tt("自由活动", "Free Time"), () => { hideMenu(); advanceTime(); });
             return;
         }
 
@@ -851,7 +864,6 @@ const CampusEngine = (function() {
                 const char = getCharPrefix(evt.eventId);
                 if (char) {
                     if (COMPLETION_FLAGS[char] && state.flags.has(COMPLETION_FLAGS[char])) return;
-                    // Daily interaction limit
                     if (['chen','lin','hacker','luyan'].includes(char)) {
                         for (let eid of state.dailyExecutedEvents) {
                             if (getCharPrefix(eid) === char) return;
@@ -875,7 +887,7 @@ const CampusEngine = (function() {
         });
 
         if (els.menuList.children.length === 0) {
-            addMenuItem("休息 (Rest)", () => { hideMenu(); advanceTime(); });
+            addMenuItem(tt("休息", "Rest"), () => { hideMenu(); advanceTime(); });
         }
     }
 
@@ -903,12 +915,22 @@ const CampusEngine = (function() {
 
         els.dialogLayer.classList.add('visible');
 
-        // 【修改点 2】接收返回值并判断
+        // Show skip button if unlocked
+        if (skipState.unlocked && els.skipBtn) {
+            els.skipBtn.classList.add('visible');
+        }
+
         const result = await executeScript(eventData.script);
 
         els.dialogLayer.classList.remove('visible');
 
-        // 如果脚本返回 'STOP'，则直接终止，不再推进时间
+        // Hide skip button and reset state
+        if (els.skipBtn) {
+            els.skipBtn.classList.remove('visible');
+        }
+        skipState.active = false;
+        updateSkipButtonUI();
+
         if (result === 'STOP') {
             console.log("[Engine] Event triggered ending sequence. Halting time flow.");
             return;
@@ -925,6 +947,11 @@ const CampusEngine = (function() {
                 await showDialog(getText(line.speaker), getText(line.text));
             }
             else if (line.cmd === 'choice') {
+                // Stop skip mode when reaching choices
+                if (skipState.active) {
+                    skipState.active = false;
+                    updateSkipButtonUI();
+                }
                 const idx = await showChoices(line.options);
                 if (idx !== -1 && line.options[idx].next) {
                     await jumpToLabel(scriptLines, line.options[idx].next);
@@ -935,7 +962,7 @@ const CampusEngine = (function() {
                 const pass = state.runtime.score >= (line.threshold || 1);
                 if (pass && line.pass) await jumpToLabel(scriptLines, line.pass);
                 else if (!pass && line.fail) await jumpToLabel(scriptLines, line.fail);
-                if (pass || !pass) return; // Jump interrupts current flow
+                if (pass || !pass) return;
             }
             else if (line.cmd === 'reward') {
                 applyReward(line);
@@ -950,7 +977,7 @@ const CampusEngine = (function() {
             }
             else if (line.cmd === 'minigame') {
                 await handleMinigame(line, scriptLines);
-                if (line.pass || line.fail) return; // If branching logic exists, stop here
+                if (line.pass || line.fail) return;
             }
             else if (line.cmd === 'play_ending') {
                 await triggerEndingSequence();
@@ -962,10 +989,14 @@ const CampusEngine = (function() {
         }
     }
 
-    // Extracted for readability
     async function handleMinigame(line, scriptLines) {
         BGMSystem.pause();
         els.dialogLayer.classList.remove('visible');
+
+        // Hide skip button during minigame
+        skipState.active = false;
+        updateSkipButtonUI();
+        if (els.skipBtn) els.skipBtn.classList.remove('visible');
 
         let finalConfig = line.config || {};
         if (line.config && line.config.configFile) {
@@ -1006,15 +1037,21 @@ const CampusEngine = (function() {
             if (line.reward) applyReward(line.reward);
             if (line.pass) {
                 els.dialogLayer.classList.add('visible');
+                // Restore skip button after minigame
+                if (skipState.unlocked && els.skipBtn) els.skipBtn.classList.add('visible');
                 await jumpToLabel(scriptLines, line.pass);
             }
         } else {
             if (line.fail) {
                 els.dialogLayer.classList.add('visible');
+                // Restore skip button after minigame
+                if (skipState.unlocked && els.skipBtn) els.skipBtn.classList.add('visible');
                 await jumpToLabel(scriptLines, line.fail);
             }
         }
         els.dialogLayer.classList.add('visible');
+        // Restore skip button after minigame
+        if (skipState.unlocked && els.skipBtn) els.skipBtn.classList.add('visible');
     }
 
     async function jumpToLabel(script, label) {
@@ -1027,6 +1064,15 @@ const CampusEngine = (function() {
         return new Promise(resolve => {
             els.speakerName.innerText = speaker;
             els.dialogText.innerText = '';
+
+            // Skip mode: show text immediately and auto-advance
+            if (skipState.active) {
+                els.dialogText.innerText = text;
+                setTimeout(resolve, 100);
+                return;
+            }
+
+            // Normal mode: typewriter effect
             let i = 0, skipped = false;
             const timer = setInterval(() => {
                 if(skipped) return;
@@ -1096,33 +1142,21 @@ const CampusEngine = (function() {
         if (data.globalBadge) localStorage.setItem(data.globalBadge, 'true');
     }
 
-    function getText(obj) {
-        if (!obj) return "";
-        if (typeof obj === 'string') return obj;
-        const lang = localStorage.getItem('app_lang') || 'cn';
-        return obj[lang] || obj['cn'] || "";
-    }
-
     function showQrModal(imageSrc) {
         const modal = document.getElementById('qrModal');
         const modalImg = document.getElementById('qrModalImg');
 
         if (modal && modalImg) {
-            modal.style.display = "flex"; // 使用 flex 布局显示以居中
-            modalImg.src = imageSrc; // 设置大图路径
-
-            // 禁止背景页面滚动
+            modal.style.display = "flex";
+            modalImg.src = imageSrc;
             document.body.style.overflow = 'hidden';
         }
     }
 
-    // 隐藏模态框
     function hideQrModal() {
         const modal = document.getElementById('qrModal');
         if (modal) {
             modal.style.display = "none";
-
-            // 恢复背景页面滚动
             document.body.style.overflow = '';
         }
     }
@@ -1135,34 +1169,44 @@ const CampusEngine = (function() {
 
         const weeks = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
-        // 确保 UI 元素存在
         if (!els.uiDay || !els.uiWeek) return;
 
-        // 循环跳动
         for (let d = startDay; d <= targetDay; d++) {
-            // 更新视觉
             els.uiDay.classList.add('jumping');
             els.uiDay.innerText = d < 10 ? `0${d}` : d;
-            els.uiWeek.innerText = weeks[d % 7]; // 自动计算星期几
+            els.uiWeek.innerText = weeks[d % 7];
 
-            // 更新内部状态 (虽然结局不需要slot逻辑，但保持状态一致是个好习惯)
             state.day = d;
 
-            // 每次跳动的间隔时间（前慢后快或者匀速）
-            // 这里用匀速，每 400ms 跳一天，模拟时间流逝
             await wait(400);
         }
 
-        // 最终定格确认
         els.uiDay.innerText = targetDay < 10 ? `0${targetDay}` : targetDay;
         els.uiWeek.innerText = weeks[targetDay % 7];
     }
 
     function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+    // ============================================================
+    // Skip System Controls
+    // ============================================================
+    function toggleSkipMode() {
+        if (!skipState.unlocked) return;
+        skipState.active = !skipState.active;
+        updateSkipButtonUI();
+        console.log(`[Skip] Mode: ${skipState.active ? 'ON' : 'OFF'}`);
+    }
+
+    function updateSkipButtonUI() {
+        if (!els.skipBtn) return;
+        els.skipBtn.classList.toggle('active', skipState.active);
+    }
+
     return {
         init,
         togglePhone,
+        toggleLanguage,
+        toggleSkipMode,
         debugSimulateScenario: simulateScenario,
         reloadGame,
         confirmReset,

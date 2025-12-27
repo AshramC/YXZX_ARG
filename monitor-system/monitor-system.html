@@ -98,40 +98,77 @@
 <div id="sys-notification" class="sys-screen" style="display: none;">
     <div class="sys-content">
         <div class="sys-header">
-            <div class="sys-title">系统通知</div>
-            <div style="color: var(--cctv-green);">状态：已确认</div>
+            <div class="sys-title">
+                <span class="lang-cn-only">系统通知</span>
+                <span class="lang-en-only">SYSTEM NOTIFICATION</span>
+            </div>
+            <div style="color: var(--cctv-green);">
+                <span class="lang-cn-only">状态：已确认</span>
+                <span class="lang-en-only">Status: CONFIRMED</span>
+            </div>
         </div>
 
         <div class="msg-meta">
             <div class="msg-row">
-                <span class="msg-label">事件类型：</span>
-                <span class="msg-val">加密信号拦截</span>
+                <span class="msg-label">
+                    <span class="lang-cn-only">事件类型：</span>
+                    <span class="lang-en-only">Event Type:</span>
+                </span>
+                <span class="msg-val">
+                    <span class="lang-cn-only">加密信号拦截</span>
+                    <span class="lang-en-only">Encrypted Signal Intercepted</span>
+                </span>
             </div>
             <div class="msg-row">
-                <span class="msg-label">发送方：</span>
-                <span class="msg-val hacker">未知来源 (匿名黑客)</span>
+                <span class="msg-label">
+                    <span class="lang-cn-only">发送方：</span>
+                    <span class="lang-en-only">Sender:</span>
+                </span>
+                <span class="msg-val hacker">
+                    <span class="lang-cn-only">未知来源（匿名黑客）</span>
+                    <span class="lang-en-only">Unknown Source (Anonymous Hacker)</span>
+                </span>
             </div>
             <div class="msg-row">
-                <span class="msg-label">接收账号：</span>
-                <span class="msg-val user">吴宇 (ID: 2023012064)</span>
+                <span class="msg-label">
+                    <span class="lang-cn-only">接收账号：</span>
+                    <span class="lang-en-only">Recipient:</span>
+                </span>
+                <span class="msg-val user">
+                    <span class="lang-cn-only">吴宇 (ID: 2023012064)</span>
+                    <span class="lang-en-only">Wu Yu (ID: 2023012064)</span>
+                </span>
             </div>
             <div class="msg-row">
-                <span class="msg-label">信号定位：</span>
-                <span class="msg-val">图书馆区域 (Academic Zone)</span>
+                <span class="msg-label">
+                    <span class="lang-cn-only">信号定位：</span>
+                    <span class="lang-en-only">Signal Location:</span>
+                </span>
+                <span class="msg-val">
+                    <span class="lang-cn-only">图书馆区域 (Academic Zone)</span>
+                    <span class="lang-en-only">Academic Zone (Library)</span>
+                </span>
             </div>
         </div>
 
         <div class="instruction-text">
             <p style="font-size: 1.1rem; line-height: 1.8; color: #bbb;">
-                系统已拦截到一条针对该账户的定向加密留言。<br>
-                由于安全协议限制，该消息无法在监控系统内解码。<br><br>
-
-                请立即登录 <span class="highlight-terminal">聊天终端</span> 查看完整内容。
+                <span class="lang-cn-only">
+                    系统已拦截到一条针对该账户的定向加密留言。<br>
+                    由于安全协议限制，该消息无法在监控系统内解码。<br><br>
+                    请立即登录 <span class="highlight-terminal">聊天终端</span> 查看完整内容。
+                </span>
+                <span class="lang-en-only">
+                    An encrypted message targeting this account has been intercepted.<br>
+                    Due to security protocols, it cannot be decoded within the surveillance system.<br><br>
+                    Please log in to the <span class="highlight-terminal">Chat Terminal</span> to view the full content.
+                </span>
             </p>
         </div>
 
         <button id="btn-sys-confirm" class="btn" style="width: 100%; padding: 1rem; margin-top: 1rem;">
-            关闭通知
+            <span class="lang-cn-only">关闭通知</span>
+            <span class="lang-en-only">CLOSE NOTIFICATION</span>
         </button>
     </div>
 </div>

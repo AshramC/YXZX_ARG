@@ -696,7 +696,22 @@ class GameEngine {
                 line.dataset.id = link.id;
                 line.setAttribute("x1", n1.x + "%"); line.setAttribute("y1", n1.y + "%");
                 line.setAttribute("x2", n2.x + "%"); line.setAttribute("y2", n2.y + "%");
-                line.setAttribute("class", `link-line ${link.isHidden ? 'link-hidden' : 'link-open'}`);
+                
+                // 根据路径类型设置不同的 CSS 类
+                let linkClass = 'link-line';
+                if (link.interaction === 'locked') {
+                    linkClass += ' link-locked';
+                } else if (link.interaction === 'hack') {
+                    linkClass += ' link-hack';
+                } else if (link.interaction === 'key') {
+                    linkClass += ' link-key';
+                } else if (link.isHidden) {
+                    linkClass += ' link-hidden';
+                } else {
+                    linkClass += ' link-open';
+                }
+                line.setAttribute("class", linkClass);
+                
                 line.dataset.cx = (n1.x + n2.x) / 2;
                 line.dataset.cy = (n1.y + n2.y) / 2;
                 this.domSvg.appendChild(line);
@@ -815,6 +830,13 @@ class GameEngine {
         link.interaction = 'none';
         link.cost = 1;
 
+        // 更新路径视觉样式 - 从 hack 变为普通路径
+        const lineEl = this.domSvg.querySelector(`.link-line[data-id="${link.id}"]`);
+        if (lineEl) {
+            lineEl.classList.remove('link-hack', 'link-key', 'link-locked');
+            lineEl.classList.add(link.isHidden ? 'link-hidden' : 'link-open');
+        }
+
         this.addLog(this.t('hack_success'), 'system');
         this.executeMove(link);
     }
@@ -887,36 +909,64 @@ class GameEngine {
 
     /**
      * 创建路径按钮（从 updatePhoneOptions 抽取）
+     * 统一视觉语言：按钮样式与路径类型对应
      */
     createLinkButton(link) {
         const btn = document.createElement('button');
         btn.dataset.lid = link.id;
 
-        let btnClass = link.isHidden ? 'btn-opt btn-sneak' : 'btn-opt btn-run';
-        let icon = link.isHidden ? '🔵' : '🏃';
+        let btnClass = 'btn-opt';
+        let icon = '';
         let isLocked = false;
         let statusText = `${link.cost}s`;
 
         const currentProgress = this.linkProgress[link.id] || 0;
 
-        if (link.interaction === 'key') {
-            if (this.inventory.includes(link.paramId)) { icon = '🔓'; }
-            else { isLocked = true; icon = '🔒'; btnClass = 'btn-opt btn-locked'; statusText = this.t('btn_need_item'); }
-        } else if (link.interaction === 'locked') {
-            isLocked = true; icon = '🚫'; btnClass = 'btn-opt btn-locked'; statusText = this.t('btn_locked');
+        // 根据路径类型设置按钮样式
+        if (link.interaction === 'locked') {
+            // 完全锁定 - 红色
+            isLocked = true;
+            icon = '🚫';
+            btnClass += ' btn-locked';
+            statusText = this.t('btn_locked');
+        } else if (link.interaction === 'key') {
+            if (this.inventory.includes(link.paramId)) {
+                // 有钥匙 - 可以通过
+                icon = '🔓';
+                btnClass += link.isHidden ? ' btn-sneak' : ' btn-run';
+            } else {
+                // 缺少钥匙 - 橙色
+                isLocked = true;
+                icon = '🔒';
+                btnClass += ' btn-key-needed';
+                statusText = this.t('btn_need_item');
+            }
         } else if (link.interaction === 'hack') {
-            icon = '⚡'; btnClass = 'btn-opt';
-            if (currentProgress > 0) statusText = `${this.t('btn_progress')}: ${currentProgress.toFixed(0)}%`;
-            else statusText = this.t('btn_need_hack');
+            // Hack路径 - 黄色
+            icon = '⚡';
+            btnClass += ' btn-hack';
+            if (currentProgress > 0) {
+                statusText = `${currentProgress.toFixed(0)}%`;
+            } else {
+                statusText = this.t('btn_need_hack');
+            }
+        } else if (link.isHidden) {
+            // 潜行路径 - 蓝色
+            icon = '🔵';
+            btnClass += ' btn-sneak';
+        } else {
+            // 普通移动 - 白色
+            icon = '🏃';
+            btnClass += ' btn-run';
         }
 
         btn.className = btnClass;
         const displayText = link.btnText || this.t('btn_move');
         btn.innerHTML = `<span><span class="btn-icon">${icon}</span> ${displayText}</span><span class="btn-cost">${statusText}</span>`;
 
+        // Hack进度条样式
         if (currentProgress > 0 && currentProgress < 100 && link.interaction === 'hack') {
-            btn.style.background = `linear-gradient(90deg, #1e293b ${currentProgress}%, #eee ${currentProgress}%)`;
-            btn.style.color = currentProgress > 50 ? '#fff' : '#000';
+            btn.style.background = `linear-gradient(90deg, rgba(245, 158, 11, 0.4) ${currentProgress}%, rgba(60, 40, 0, 0.9) ${currentProgress}%)`;
         }
 
         if (isLocked) {
@@ -1588,55 +1638,9 @@ class GameEngine {
             return;
         }
 
+        // 使用统一的 createLinkButton 方法创建按钮
         validLinks.forEach(link => {
-            const btn = document.createElement('button');
-            btn.dataset.lid = link.id;
-
-            let btnClass = link.isHidden ? 'btn-opt btn-sneak' : 'btn-opt btn-run';
-            let icon = link.isHidden ? '🔵' : '🏃';
-            let isLocked = false;
-            let statusText = `${link.cost}s`;
-
-            const currentProgress = this.linkProgress[link.id] || 0;
-
-            if (link.interaction === 'key') {
-                if (this.inventory.includes(link.paramId)) { icon = '🔓'; }
-                else { isLocked = true; icon = '🔒'; btnClass = 'btn-opt btn-locked'; statusText = this.t('btn_need_item'); }
-            } else if (link.interaction === 'locked') {
-                isLocked = true; icon = '🚫'; btnClass = 'btn-opt btn-locked'; statusText = this.t('btn_locked');
-            } else if (link.interaction === 'hack') {
-                icon = '⚡'; btnClass = 'btn-opt';
-                if (currentProgress > 0) statusText = `${this.t('btn_progress')}: ${currentProgress.toFixed(0)}%`;
-                else statusText = this.t('btn_need_hack');
-            }
-
-            btn.className = btnClass;
-            const displayText = link.btnText || this.t('btn_move');
-            btn.innerHTML = `<span><span class="btn-icon">${icon}</span> ${displayText}</span><span class="btn-cost">${statusText}</span>`;
-
-            if (currentProgress > 0 && currentProgress < 100 && link.interaction === 'hack') {
-                btn.style.background = `linear-gradient(90deg, #1e293b ${currentProgress}%, #eee ${currentProgress}%)`;
-                btn.style.color = currentProgress > 50 ? '#fff' : '#000';
-            }
-
-            if (isLocked) {
-                btn.disabled = true;
-            } else {
-                if (link.interaction === 'hack') {
-                    btn.onclick = () => this.toggleHack(link);
-                } else {
-                    btn.onclick = () => this.executeMove(link);
-                }
-
-                btn.onmouseenter = () => {
-                    this.highlightLink(link);
-                    if (!link.isHidden || link.interaction === 'hack') this.showNoisePreview();
-                };
-                btn.onmouseleave = () => {
-                    this.clearLinkHighlight();
-                    if (this.player.state !== 'HACKING') this.hideNoisePreview();
-                };
-            }
+            const btn = this.createLinkButton(link);
             this.domActions.appendChild(btn);
         });
     }
