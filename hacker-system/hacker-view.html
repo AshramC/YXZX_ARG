@@ -44,31 +44,32 @@
             <span class="lang-cn-only">实时监控源: 图书馆</span>
         </span>
 
-        <div class="hacker-lang-switch" onclick="toggleLanguage()">
-            [ <span id="btn-cn">CN</span> / <span id="btn-en">EN</span> ]
-        </div>
-
         <!-- 调试按钮：上线时注释掉即可 -->
 <!--        <div class="debug-controls">-->
 <!--            <button onclick="window.gameEngine?.skipLevel()">[SKIP]</button>-->
 <!--        </div>-->
 
-        <!-- 图例说明按钮 -->
-        <button class="legend-toggle" onclick="toggleLegend()">
-            <span class="lang-cn-only">[ ? 图例 ]</span>
-            <span class="lang-en-only">[ ? LEGEND ]</span>
-        </button>
-
-        <!-- 玩家用：跳过游戏按钮 -->
-        <div class="skip-game-btn" onclick="window.gameEngine?.showSkipConfirm()">
-            <span class="skip-icon">⏭</span>
-            <span class="skip-text">
-                <span class="lang-cn-only">跳过游戏</span>
-                <span class="lang-en-only">SKIP GAME</span>
-            </span>
-        </div>
-
         <span id="clock" style="float: right">REC 00:00:00</span>
+    </div>
+
+    <!-- 语言切换按钮 - 移到 monitor-header 外面 -->
+    <div class="hacker-lang-switch" onclick="toggleLanguage()">
+        [ <span id="btn-cn">CN</span> / <span id="btn-en">EN</span> ]
+    </div>
+
+    <!-- 图例说明按钮 -->
+    <button class="legend-toggle" onclick="toggleLegend()">
+        <span class="lang-cn-only">[ 图例说明 ]</span>
+        <span class="lang-en-only">[ LEGEND ]</span>
+    </button>
+
+    <!-- 玩家用：跳过游戏按钮 -->
+    <div class="skip-game-btn" onclick="window.gameEngine?.showSkipConfirm()">
+        <span class="skip-icon">⏭</span>
+        <span class="skip-text">
+            <span class="lang-cn-only">跳过游戏</span>
+            <span class="lang-en-only">SKIP GAME</span>
+        </span>
     </div>
 
     <div id="mapContainer" class="map-container">

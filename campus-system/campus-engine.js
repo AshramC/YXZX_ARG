@@ -11,11 +11,49 @@ const CampusEngine = (function() {
     // ============================================================
     // 多语言工具函数
     // ============================================================
+
+    // Speaker 名称翻译映射表
+    const SPEAKER_MAP = {
+        "吴宇": { cn: "吴宇", en: "Wu Yu" },
+        "张晨": { cn: "张晨", en: "Zhang Chen" },
+        "陆言": { cn: "陆言", en: "Lu Yan" },
+        "张澄": { cn: "张澄", en: "Zhang Cheng" },
+        "陈雨菲": { cn: "陈雨菲", en: "Chen Yufei" },
+        "林浩": { cn: "林浩", en: "Lin Hao" },
+        "匿名黑客": { cn: "匿名黑客", en: "Anonymous Hacker" },
+        "肖楚生": { cn: "肖楚生", en: "Xiao Chusheng" },
+        "孙强": { cn: "孙强", en: "Sun Qiang" },
+        "周凯": { cn: "周凯", en: "Zhou Kai" },
+        "System": { cn: "System", en: "System" },
+        "系统": { cn: "系统", en: "System" },
+        "校领导": { cn: "校领导", en: "School Leader" },
+        "学生A": { cn: "学生A", en: "Student A" },
+        "学生B": { cn: "学生B", en: "Student B" },
+        "学生C": { cn: "学生C", en: "Student C" },
+        "班主任-王老师": { cn: "班主任-王老师", en: "Teacher Wang" },
+        "保卫科": { cn: "保卫科", en: "Security Team" },
+        "神秘人": { cn: "神秘人", en: "Mystery Man" }
+    };
+
     function getText(obj) {
         if (!obj) return "";
         if (typeof obj === 'string') return obj;
         const lang = localStorage.getItem('app_lang') || 'cn';
         return obj[lang] || obj['cn'] || "";
+    }
+
+    /**
+     * 获取翻译后的 Speaker 名称
+     */
+    function getSpeaker(name) {
+        if (!name) return "";
+        // 如果已经是双语对象，直接用 getText
+        if (typeof name === 'object') return getText(name);
+        // 查找映射表
+        const mapped = SPEAKER_MAP[name];
+        if (mapped) return getText(mapped);
+        // 没有映射则返回原名
+        return name;
     }
 
     /**
@@ -36,17 +74,10 @@ const CampusEngine = (function() {
         const newLang = current === 'cn' ? 'en' : 'cn';
         localStorage.setItem('app_lang', newLang);
 
-        // 更新 body 类
-        document.body.classList.remove('lang-cn', 'lang-en');
-        document.body.classList.add('lang-' + newLang);
+        console.log(`[Engine] Language switched to: ${newLang}, reloading...`);
 
-        // 更新按钮高亮
-        const btnCn = document.getElementById('btn-cn');
-        const btnEn = document.getElementById('btn-en');
-        if (btnCn) btnCn.classList.toggle('active', newLang === 'cn');
-        if (btnEn) btnEn.classList.toggle('active', newLang === 'en');
-
-        console.log(`[Engine] Language switched to: ${newLang}`);
+        // 刷新页面以重新加载对应语言的配置文件
+        window.location.reload();
     }
 
     /**
@@ -718,9 +749,9 @@ const CampusEngine = (function() {
                 if (item.status === 'replied') badgeHtml = `<div style="font-size:0.8rem;color:#999;">✔</div>`;
 
                 el.innerHTML = `
-                    <div class="contact-avatar">${getText(item.contact).substring(0,2)}</div>
+                    <div class="contact-avatar">${getSpeaker(item.contact).substring(0,2)}</div>
                     <div class="contact-info">
-                        <div class="c-name">${getText(item.contact)}</div>
+                        <div class="c-name">${getSpeaker(item.contact)}</div>
                         <div class="c-preview">${getText(item.preview)}</div>
                     </div>
                     ${badgeHtml}
@@ -734,7 +765,7 @@ const CampusEngine = (function() {
             els.contactListView.classList.add('hidden');
             els.chatDetailView.classList.remove('hidden');
             els.phoneBackBtn.classList.remove('hidden');
-            els.phoneTitle.innerText = getText(item.contact);
+            els.phoneTitle.innerText = getSpeaker(item.contact);
             els.chatList.innerHTML = '';
             els.chatInput.innerHTML = '';
 
@@ -944,7 +975,7 @@ const CampusEngine = (function() {
             const line = scriptLines[i];
 
             if (line.cmd === 'dialog') {
-                await showDialog(getText(line.speaker), getText(line.text));
+                await showDialog(getSpeaker(line.speaker), getText(line.text));
             }
             else if (line.cmd === 'choice') {
                 // Stop skip mode when reaching choices

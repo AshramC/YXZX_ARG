@@ -95,6 +95,32 @@ class GameEngine {
     }
 
     refreshUiText(lang) {
+        // 1. 更新配置库引用（语言切换后 window.LevelConfig 已被重新加载）
+        if (window.LevelConfig) {
+            this.levelLibrary = window.LevelConfig;
+        }
+
+        // 2. 同步更新 HackerConfig 引用
+        // （HackerConfig 包含 UI 文本如 hack_start, btn_move 等）
+
+        // 3. 重新深拷贝当前关卡数据，确保使用新语言的配置
+        if (this.currentLevelId && this.levelLibrary[this.currentLevelId]) {
+            this.levelData = JSON.parse(JSON.stringify(this.levelLibrary[this.currentLevelId]));
+        }
+
+        // 4. 清空聊天历史，重新显示当前节点的消息
+        if (this.domChat) {
+            this.domChat.innerHTML = '';
+            // 显示关卡加载消息
+            this.addLog(`Loaded: ${this.levelData.name}`, 'system');
+            // 如果当前节点有消息，重新显示
+            const currentNode = this.getNode(this.player.nodeId);
+            if (currentNode && currentNode.msg) {
+                this.addLog(currentNode.msg, 'npc');
+            }
+        }
+
+        // 5. 刷新 UI 组件
         this.updatePhoneOptions();
         this.updateLevelUI();
     }
@@ -484,6 +510,12 @@ class GameEngine {
         // 1. 停止背景音乐，播放一点音效（如果有的话）
         this.stopBgm();
 
+        // ★★★ 修复：从 HackerConfig 获取多语言文本 ★★★
+        const title = this.t('mission_update_title') || '⚠ MISSION UPDATE ⚠';
+        const line1 = this.t('mission_update_line1') || 'Mission briefing...';
+        const line2 = this.t('mission_update_line2') || 'Time is running out...';
+        const btnText = this.t('mission_update_btn') || '[ START ]';
+
         // 2. 创建覆盖层 DOM
         const overlay = document.createElement('div');
         overlay.id = 'missionStartScreen';
@@ -503,19 +535,17 @@ class GameEngine {
         overlay.innerHTML = `
             <div style="border: 2px solid #ef4444; padding: 40px; max-width: 600px; width: 100%; background: rgba(20, 0, 0, 0.9); box-shadow: 0 0 30px rgba(239, 68, 68, 0.2);">
                 <h1 style="color: #ef4444; margin: 0 0 20px 0; font-size: 2em; letter-spacing: 2px; text-align: center; text-shadow: 0 0 10px #ef4444;" class="glitch-text">
-                    ⚠ MISSION UPDATE ⚠
+                    ${title}
                 </h1>
                 
                 <div style="width: 100%; height: 2px; background: #ef4444; margin-bottom: 30px;"></div>
                 
                 <p style="font-size: 1.2em; line-height: 1.8; margin-bottom: 40px; text-align: left;">
-                    为了 <span style="color: #ef4444; font-weight: bold; text-decoration: underline;">张晨</span> 的复仇计划，<br>
-                    你需要在最后几天的时间内尽可能的做点什么。
+                    ${line1}
                 </p>
 
                 <p style="font-size: 1.2em; line-height: 1.8; margin-bottom: 40px; text-align: left; opacity: 0.8;">
-                    一切准备就绪。<br>
-                    时间将会从 <span style="color: #4ade80">[12.06]</span> 开始，抓紧时间！ 。
+                    ${line2}
                 </p>
                 
                 <div style="text-align: center;">
@@ -524,7 +554,7 @@ class GameEngine {
                         padding: 15px 40px; font-size: 1.2em; font-family: inherit; cursor: pointer;
                         transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px;
                     ">
-                        [ 点击进入校园生活 ]
+                        ${btnText}
                     </button>
                     <div style="margin-top: 10px; font-size: 0.8em; color: #666;">> SYSTEM_MODE: SWITCHING...</div>
                 </div>
@@ -2237,13 +2267,13 @@ class GameEngine {
             }
 
             // 触发小游戏入口
-            this.addLog('[SYSTEM] 已跳过至下一阶段', 'system');
+            this.addLog(this.t('skip_success') || '[SYSTEM] Skipped to next phase', 'system');
             this.showMiniGameEntry(targetNode);
             this.handleIdleThought(targetNode);
 
         } else {
             console.warn('[Skip] 未找到任何 minigame 节点');
-            this.addLog('[SYSTEM] 本关没有可跳过的内容', 'system');
+            this.addLog(this.t('skip_no_target') || '[SYSTEM] No skippable content', 'system');
         }
     }
 }

@@ -52,6 +52,34 @@ body { background: var(--bg-color); height: 100vh; overflow: hidden; font-family
     pointer-events: none;
 }
 
+/* 语言切换按钮 - 放在图例按钮旁边 */
+.hacker-lang-switch {
+    position: absolute;
+    top: 60px;
+    left: 130px;
+    pointer-events: auto;
+    cursor: pointer;
+    z-index: 100;
+    padding: 6px 12px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid #333;
+    color: #888;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    transition: all 0.2s ease;
+}
+.hacker-lang-switch:hover {
+    color: #fff;
+    border-color: #666;
+}
+.hacker-lang-switch span {
+    transition: color 0.2s;
+}
+.hacker-lang-switch span.active {
+    color: #fff;
+    font-weight: bold;
+}
+
 /* 调试按钮 */
 .debug-controls {
     position: absolute; top: 20px; right: 150px;
