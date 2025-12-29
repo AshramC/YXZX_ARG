@@ -13,6 +13,12 @@
         ↻ RESET
     </div>
 
+    <!-- 跳过按钮 (通关后解锁) - 全局显示 -->
+    <div class="skip-btn" id="skipBtn" onclick="CampusEngine.toggleSkipMode()">
+        <span class="skip-icon">▶▶</span>
+        <span class="skip-text">SKIP</span>
+    </div>
+
     <!-- 语言切换按钮 -->
     <div class="lang-switch-btn" onclick="CampusEngine.toggleLanguage()">
         [ <span id="btn-cn" class="active">CN</span> / <span id="btn-en">EN</span> ]
@@ -45,12 +51,6 @@
     <div class="menu-layer" id="menuLayer">
         <div class="menu-list" id="menuList"></div>
         <div class="menu-deco-char">TAKE YOUR TIME</div>
-    </div>
-
-    <!-- 跳过按钮 (通关后解锁) -->
-    <div class="skip-btn" id="skipBtn" onclick="CampusEngine.toggleSkipMode()">
-        <span class="skip-icon">▶▶</span>
-        <span class="skip-text">SKIP</span>
     </div>
 
     <div class="dialog-layer" id="dialogLayer">

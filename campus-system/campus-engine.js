@@ -143,6 +143,9 @@ const CampusEngine = (function() {
         active: false
     };
 
+    // 用于存储当前对话的完成回调，以便 Skip 激活时可以立即完成
+    let pendingDialogResolve = null;
+
     let Config = { schedule: null, events: null, phone: null };
     const els = {};
 
@@ -205,6 +208,11 @@ const CampusEngine = (function() {
         // Check if skip mode is unlocked
         skipState.unlocked = localStorage.getItem(SKIP_UNLOCK_KEY) === 'true';
         console.log(`[Skip] Unlocked: ${skipState.unlocked}`);
+
+        // 全局显示 Skip 按钮（如果已解锁）
+        if (skipState.unlocked && els.skipBtn) {
+            els.skipBtn.classList.add('unlocked');
+        }
 
         const lang = localStorage.getItem('app_lang') || 'cn';
         console.log(`[Engine] Booting in ${lang}...`);
@@ -533,14 +541,9 @@ const CampusEngine = (function() {
 
         if (eventData) {
             els.dialogLayer.classList.add('visible');
-            // Show skip button if unlocked
-            if (skipState.unlocked && els.skipBtn) {
-                els.skipBtn.classList.add('visible');
-            }
             await executeScript(eventData.script);
             els.dialogLayer.classList.remove('visible');
-            // Hide skip button and reset
-            if (els.skipBtn) els.skipBtn.classList.remove('visible');
+            // Reset skip state
             skipState.active = false;
             updateSkipButtonUI();
 
@@ -562,6 +565,11 @@ const CampusEngine = (function() {
         localStorage.setItem(SKIP_UNLOCK_KEY, 'true');
         skipState.unlocked = true;
         console.log('[Skip] Mode unlocked for future playthroughs.');
+
+        // 显示全局 Skip 按钮
+        if (els.skipBtn) {
+            els.skipBtn.classList.add('unlocked');
+        }
 
         const bgMap = {
             'perfect': '../ending/perfect.jpg',
@@ -946,19 +954,11 @@ const CampusEngine = (function() {
 
         els.dialogLayer.classList.add('visible');
 
-        // Show skip button if unlocked
-        if (skipState.unlocked && els.skipBtn) {
-            els.skipBtn.classList.add('visible');
-        }
-
         const result = await executeScript(eventData.script);
 
         els.dialogLayer.classList.remove('visible');
 
-        // Hide skip button and reset state
-        if (els.skipBtn) {
-            els.skipBtn.classList.remove('visible');
-        }
+        // Reset skip state after event
         skipState.active = false;
         updateSkipButtonUI();
 
@@ -978,11 +978,7 @@ const CampusEngine = (function() {
                 await showDialog(getSpeaker(line.speaker), getText(line.text));
             }
             else if (line.cmd === 'choice') {
-                // Stop skip mode when reaching choices
-                if (skipState.active) {
-                    skipState.active = false;
-                    updateSkipButtonUI();
-                }
+                // Skip 模式下遇到选项时不重置状态，让用户选择后继续保持 Skip
                 const idx = await showChoices(line.options);
                 if (idx !== -1 && line.options[idx].next) {
                     await jumpToLabel(scriptLines, line.options[idx].next);
@@ -1024,10 +1020,9 @@ const CampusEngine = (function() {
         BGMSystem.pause();
         els.dialogLayer.classList.remove('visible');
 
-        // Hide skip button during minigame
+        // Pause skip mode during minigame
         skipState.active = false;
         updateSkipButtonUI();
-        if (els.skipBtn) els.skipBtn.classList.remove('visible');
 
         let finalConfig = line.config || {};
         if (line.config && line.config.configFile) {
@@ -1068,21 +1063,15 @@ const CampusEngine = (function() {
             if (line.reward) applyReward(line.reward);
             if (line.pass) {
                 els.dialogLayer.classList.add('visible');
-                // Restore skip button after minigame
-                if (skipState.unlocked && els.skipBtn) els.skipBtn.classList.add('visible');
                 await jumpToLabel(scriptLines, line.pass);
             }
         } else {
             if (line.fail) {
                 els.dialogLayer.classList.add('visible');
-                // Restore skip button after minigame
-                if (skipState.unlocked && els.skipBtn) els.skipBtn.classList.add('visible');
                 await jumpToLabel(scriptLines, line.fail);
             }
         }
         els.dialogLayer.classList.add('visible');
-        // Restore skip button after minigame
-        if (skipState.unlocked && els.skipBtn) els.skipBtn.classList.add('visible');
     }
 
     async function jumpToLabel(script, label) {
@@ -1099,25 +1088,53 @@ const CampusEngine = (function() {
             // Skip mode: show text immediately and auto-advance
             if (skipState.active) {
                 els.dialogText.innerText = text;
-                setTimeout(resolve, 100);
+                pendingDialogResolve = null;
+                resolve();
                 return;
             }
 
             // Normal mode: typewriter effect
-            let i = 0, skipped = false;
-            const timer = setInterval(() => {
-                if(skipped) return;
-                els.dialogText.innerText += text[i++];
-                if(i >= text.length) finish();
-            }, 30);
-            function finish() {
+            let i = 0;
+            let resolved = false;
+
+            // 完成对话并继续的回调
+            const finishAndResolve = () => {
+                if (resolved) return;
+                resolved = true;
                 clearInterval(timer);
                 els.dialogText.innerText = text;
-                skipped = true;
-                const h = (e) => { e.stopPropagation(); els.dialogLayer.removeEventListener('click', h); resolve(); };
-                els.dialogLayer.addEventListener('click', h, {once:true});
-            }
-            els.dialogLayer.onclick = (e) => { e.stopPropagation(); if(!skipped) finish(); };
+                els.dialogLayer.onclick = null;
+                pendingDialogResolve = null;
+                resolve();
+            };
+
+            // 存储回调，以便 Skip 激活时可以调用
+            pendingDialogResolve = finishAndResolve;
+
+            const timer = setInterval(() => {
+                if (resolved) return;
+                els.dialogText.innerText += text[i++];
+                if (i >= text.length) {
+                    clearInterval(timer);
+                    // 打字完成，等待点击
+                }
+            }, 30);
+
+            // 点击处理
+            els.dialogLayer.onclick = (e) => {
+                e.stopPropagation();
+                if (resolved) return;
+                
+                if (i < text.length) {
+                    // 还在打字中，跳过打字效果显示完整文本
+                    clearInterval(timer);
+                    els.dialogText.innerText = text;
+                    i = text.length;
+                } else {
+                    // 打字完成，继续下一句
+                    finishAndResolve();
+                }
+            };
         });
     }
 
@@ -1226,6 +1243,11 @@ const CampusEngine = (function() {
         skipState.active = !skipState.active;
         updateSkipButtonUI();
         console.log(`[Skip] Mode: ${skipState.active ? 'ON' : 'OFF'}`);
+
+        // 如果激活了 Skip 模式，且有正在进行的对话，立即完成当前对话
+        if (skipState.active && pendingDialogResolve) {
+            pendingDialogResolve();
+        }
     }
 
     function updateSkipButtonUI() {

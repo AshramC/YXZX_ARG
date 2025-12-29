@@ -864,12 +864,13 @@ body.lang-en .lang-cn-only {
 
 /* =========================================
    11. 跳过按钮 (Skip Button - Unlocked after clear)
+   全局显示，位于右上角与语言切换按钮并排
    ========================================= */
 .skip-btn {
     position: absolute;
-    bottom: 220px;
-    left: 5%;
-    z-index: 85;
+    top: 20px;
+    right: 280px;
+    z-index: 30000;
     background: black;
     color: white;
     border: 2px solid white;
@@ -887,7 +888,8 @@ body.lang-en .lang-cn-only {
     user-select: none;
 }
 
-.skip-btn.visible {
+/* 通关后解锁显示 */
+.skip-btn.unlocked {
     display: flex;
 }
 
